@@ -1,0 +1,133 @@
+# Vehicle History Registry on Solana — Project Overview
+
+## Mission
+
+Build a **public, tamper-proof vehicle history registry** on the Solana blockchain. Authorized institutions (police, inspection stations, registration authorities, insurers) write events about a vehicle's life; anyone in the world can read the full history by entering a VIN. Once written, records cannot be altered or deleted — solving the core problem of odometer fraud, hidden damage, and fragmented data across countries.
+
+## Why this exists
+
+Today, vehicle history is split across dozens of disconnected silos: each insurer, each country's registry, each workshop chain holds its own data. A buyer in Poland purchasing a car imported from Germany has no way to verify its full history. Centralized solutions (carVertical, AutoDNA) depend on bilateral data deals and operate per-country. A blockchain-based registry lets multiple competing institutions write to one shared, neutral source of truth — without anyone owning it.
+
+## User roles
+
+The system has **two distinct user groups** and therefore two main interfaces.
+
+### Writers (authorized institutions only)
+
+Onboarded and verified before they can write. Each writer has a Solana wallet whose public key is registered on-chain as an `Authority` with a defined type:
+
+| Authority type | What they typically write |
+|---|---|
+| **Police** | accident reports, theft reports, recovery records |
+| **Inspection station (SKP)** | technical inspection result + mileage |
+| **Registration office** | first registration, ownership transfer, deregistration, scrapping |
+| **Insurer** | accident damage reports, total loss declarations, claim history |
+| **Customs / import authority** | import event, country of origin, original mileage |
+| **Authorized service center (OEM)** | service records, recall completion, mileage |
+
+Writers log in with their wallet, fill out a structured form for the event type, optionally upload photos, and sign a transaction. The cost per event is a fraction of a cent.
+
+### Readers (everyone — public, free)
+
+Anyone can enter a VIN on a public page and instantly see the full event timeline of that vehicle: every inspection, every accident, every owner change, every recorded mileage reading. Including:
+
+- Government agencies cross-checking imported vehicles
+- UFG and other insurance bureaus checking fraud risk
+- Police verifying a vehicle's status during a stop
+- Private buyers doing due diligence before purchase
+- Workshops checking history before a major repair
+
+The basic timeline is free and public. Detailed reports (PDF export, photos, full document hashes verified) can be paywalled at a low price (~1 EUR via Solana Pay) to fund operations.
+
+## Core features
+
+### 1. Authority onboarding portal
+
+- Admin-only flow (initially controlled by us, later by a multi-sig council)
+- Adds a new authority's wallet public key to the on-chain registry
+- Assigns its type and country
+- Can revoke authority access if compromised
+
+### 2. Writer portal — `app.vehiclehistory.xyz/write`
+
+- Wallet login (Phantom, Solflare)
+- "Register new vehicle" form: VIN, make, model, year (only once per VIN, by the first authority)
+- "Add event" form with event-type-specific fields:
+  - **Inspection**: result (pass/fail), mileage, defects, photos
+  - **Accident**: severity, damaged areas, mileage, photos of damage, claim ID
+  - **Mileage reading**: just the number + date
+  - **Ownership transfer**: previous owner hash, new owner hash, sale price (optional)
+  - **Theft / recovery**: status, date
+  - **Import**: country of origin, original mileage
+- Photos uploaded to Arweave (permanent, decentralized storage); only the file hash and Arweave transaction ID go on-chain
+- Anti-rollback rule enforced on-chain: a new mileage record cannot be lower than the previous one — protocol-level fraud prevention
+
+### 3. Public lookup page — `vehiclehistory.xyz`
+
+- Search bar: enter VIN → instant lookup
+- Vehicle summary: make/model/year, current registered owner status, total events
+- Event timeline (newest first): event type, date, mileage, authority who wrote it (with type icon), thumbnail of attached photos
+- Click any event → expanded view: all fields, full-size photos, "verify integrity" button (recomputes hash and confirms data hasn't been tampered with)
+- Optional paid PDF export
+- Read-only, no wallet required, mobile-friendly
+
+### 4. Authority directory page
+
+- Lists all currently active authorities
+- Their type, country, number of events written, status (active / revoked)
+- Builds public trust by making the writer set transparent
+
+## Architecture (one-paragraph version)
+
+The system runs as a **Solana smart contract (program) written in Anchor**. The program manages three on-chain account types: `Vehicle` (one per VIN), `Authority` (one per institution), and `VehicleEvent` (one per event, stored in a compressed Merkle tree for cost efficiency). Photos and large documents are uploaded to **Arweave** for permanent decentralized storage; only their content hashes are stored on-chain. The frontend is a **Next.js web app** that talks to Solana via the standard wallet adapter for writers, and via the **Helius RPC indexer** for fast public reads. There is no traditional backend database — the blockchain *is* the database.
+
+## Authorization model
+
+- Only wallets registered as `Authority` can call `write_event`. Any other caller is rejected at the program level (not the UI level — this is enforced cryptographically).
+- The admin multi-sig can add or revoke authorities at any time.
+- Each event permanently records which authority wrote it. If an authority is later revoked for misconduct, their past events are flagged but not deleted (immutability is a feature here — the audit trail must remain intact).
+- A future trust-score system can weight events by authority reputation, but v1 treats all authorities as equal.
+
+## Privacy considerations
+
+- VINs are public information (visible on the windshield), so storing them on-chain is legally fine.
+- Personal owner data is **never written on-chain** — at most a hash of the owner's ID document for transfer events. The actual identity stays in the writer's own systems.
+- Photos may contain sensitive details (license plates, faces) — writers are responsible for redacting before upload, and the UI will assist with this.
+- GDPR right-to-erasure: handled by deleting the off-chain Arweave content (when legally required) — the on-chain hash becomes meaningless without the source data.
+
+## MVP scope (first release)
+
+Targeting a working product in **6-8 weeks**:
+
+1. Anchor program deployed on Solana devnet with `register_vehicle`, `write_event`, `register_authority`, `revoke_authority`
+2. Writer portal supporting **two event types**: technical inspection and mileage reading
+3. Public lookup page with VIN search and event timeline
+4. Photo upload to Arweave with on-chain hash anchoring
+5. One pilot partner onboarded as the first authority (e.g. a single inspection station chain or insurer)
+6. ~100 real vehicles in the registry as proof of concept
+
+## Out of scope for MVP (v2 and later)
+
+- Tokenized incentive layer (rewarding workshops with tokens for writing events)
+- Mobile app
+- Cross-chain bridges
+- Ownership NFT / digital title
+- Trust-score system
+- AI-based fraud pattern detection across events
+
+## Tech stack summary
+
+| Layer | Technology |
+|---|---|
+| Blockchain | Solana (devnet → mainnet) |
+| Smart contract framework | Anchor (Rust) |
+| Compressed event storage | Metaplex Bubblegum |
+| Off-chain file storage | Arweave (via Irys SDK) |
+| Indexer | Helius DAS API |
+| Frontend | Next.js 14 + TypeScript |
+| Wallet integration | Solana Wallet Adapter |
+| Payments | Solana Pay (USDC) |
+
+---
+
+*Next concrete step: lock the data model — exactly which fields each event type carries — before writing any code.*

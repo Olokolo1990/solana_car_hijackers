@@ -1,7 +1,7 @@
 # Developer Setup — step by step
 
 This walks through everything from a fresh Windows machine to a deployed
-Vehicle Passport program on devnet with the frontend talking to it.
+Vehicle History program on devnet with the frontend talking to it.
 
 ## 0. What you need installed
 
@@ -35,29 +35,29 @@ If `airdrop` is rate-limited, use `https://faucet.solana.com/`.
 
 ## 2. Build & deploy the Anchor program
 
+All Anchor commands run from the **repo root**.
+
 ```bash
-cd anchor_program
-
 # Generate a fresh program keypair (do this ONCE per project, never share)
-solana-keygen new -o target/deploy/vehicle_passport-keypair.json --no-bip39-passphrase
+mkdir -p target/deploy
+solana-keygen new -o target/deploy/vehicle_history-keypair.json --no-bip39-passphrase
 
-# Update declare_id! in lib.rs with the new pubkey
-solana-keygen pubkey target/deploy/vehicle_passport-keypair.json
-# → paste into programs/vehicle_passport/src/lib.rs:declare_id!("...")
+# Update declare_id! with the new pubkey
+solana-keygen pubkey target/deploy/vehicle_history-keypair.json
+# → paste into programs/vehicle_history/src/lib.rs:declare_id!("...")
 # → also into Anchor.toml under [programs.localnet] and [programs.devnet]
 
 anchor build
 anchor deploy --provider.cluster devnet
-
-# Copy the generated IDL to the SDK
-cp target/idl/vehicle_passport.json ../sdk/src/idl.json
-cp target/types/vehicle_passport.ts ../sdk/src/types-generated.ts
 ```
+
+After build, the IDL lives at `target/idl/vehicle_history.json` and the TS
+types at `target/types/vehicle_history.ts`. The frontend imports them
+directly from there.
 
 ## 3. Initialize the program (one-time)
 
 ```bash
-cd anchor_program
 anchor run initialize    # calls migrations/deploy.ts
 ```
 
@@ -65,52 +65,53 @@ This sets your wallet as the on-chain `admin`.
 
 ## 4. Register the first authority (admin only)
 
-There is no UI for this yet — use a CLI script (TODO):
+Use the admin UI (no CLI script yet):
 
-```bash
-# Pseudo-command for now; add scripts/register-authority.ts as part of v1
-ts-node scripts/register-authority.ts \
-  --signer  <signer_pubkey> \
-  --kind    inspection_station \
-  --country PL \
-  --name    "SKP Warszawa Mokotów"
-```
+1. `cd app && npm run dev`
+2. Open http://localhost:3000/register
+3. Connect the admin wallet
+4. Fill in the form: signer pubkey, kind, country, display name
+5. Submit
 
 ## 5. Run the frontend
 
 ```bash
-cd client
+cd app
 cp .env.example .env.local
 # Edit .env.local: set NEXT_PUBLIC_PROGRAM_ID = your declare_id pubkey
 npm install
 npm run dev
-# Open http://localhost:3000 — public lookup
-# Open http://localhost:3000/write — authority writer portal
 ```
 
-## 6. Run the SDK build (optional, for tests)
+Routes:
+- http://localhost:3000/                 — public VIN lookup
+- http://localhost:3000/vehicle/{vin}    — public history detail
+- http://localhost:3000/write            — authority writer portal (wallet)
+- http://localhost:3000/authorities      — admin: list authorities
+- http://localhost:3000/register         — admin: onboard new authority
+
+## 6. (Optional) Run the AI engine for Driver Passport
 
 ```bash
-cd sdk
-npm install
-npm run build
+docker compose -f compose.dev.yml up
+# or directly:
+cd ai_engine
+pip install -r requirements.txt
+uvicorn main:app --reload
 ```
 
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `anchor build` errors with linker issues on Windows | Native Windows toolchain | Move to WSL2 |
+| `anchor build` fails on Windows with linker issues | Native Windows toolchain | Move to WSL2 |
 | `anchor deploy` fails with insufficient funds | Devnet airdrop quota hit | Use https://faucet.solana.com/ |
 | Frontend "program not found" error | `NEXT_PUBLIC_PROGRAM_ID` doesn't match deployed program | Re-copy from `solana-keygen pubkey target/deploy/...keypair.json` |
 | `getProgramAccounts` is slow | Devnet RPC is throttled | Use a Helius API key (`NEXT_PUBLIC_HELIUS_API_KEY`) |
 
 ## Workflow summary
 
-For ongoing work:
-
 1. **Branch off `main`** with `feat/<short-name>` or `fix/<short-name>`
-2. **Rust changes** → `cd anchor_program && anchor build && anchor test`
-3. **Frontend changes** → `cd client && npm run dev`
-4. **Copy IDL after every program change** → `target/idl/...json` → `sdk/src/idl.json`
-5. **PR to `main`**, ask one teammate for review, squash-merge
+2. **Rust changes** → `anchor build && anchor test`
+3. **Frontend changes** → `cd app && npm run dev`
+4. **PR to `main`**, ask one teammate for review, squash-merge

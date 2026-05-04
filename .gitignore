@@ -1,0 +1,19 @@
+# Anchor / Rust
+.anchor
+target
+test-ledger
+**/*.rs.bk
+
+# Node
+node_modules
+.yarn
+*.tsbuildinfo
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
