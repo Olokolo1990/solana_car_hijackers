@@ -1,4 +1,15 @@
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vpassport
+      POSTGRES_PASSWORD: vpassport
+      POSTGRES_DB: vpassport
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
   ai-engine:
     build: .
     ports:
@@ -7,4 +18,11 @@ services:
       - ./ai_engine:/app
     env_file:
       - .env
+    environment:
+      DATABASE_URL: postgresql://vpassport:vpassport@db:5432/vpassport
+    depends_on:
+      - db
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  pg_data:

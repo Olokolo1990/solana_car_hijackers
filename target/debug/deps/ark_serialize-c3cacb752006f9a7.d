@@ -1,0 +1,9 @@
+C:\Users\Maria Guevara\Desktop\sol_car_highkjacker\target\debug\deps\ark_serialize-c3cacb752006f9a7.d: C:\Users\Maria\ Guevara\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ark-serialize-0.4.2\src\lib.rs C:\Users\Maria\ Guevara\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ark-serialize-0.4.2\src\error.rs C:\Users\Maria\ Guevara\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ark-serialize-0.4.2\src\flags.rs C:\Users\Maria\ Guevara\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ark-serialize-0.4.2\src\impls.rs C:\Users\Maria\ Guevara\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ark-serialize-0.4.2\src\../README.md
+
+C:\Users\Maria Guevara\Desktop\sol_car_highkjacker\target\debug\deps\libark_serialize-c3cacb752006f9a7.rmeta: C:\Users\Maria\ Guevara\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ark-serialize-0.4.2\src\lib.rs C:\Users\Maria\ Guevara\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ark-serialize-0.4.2\src\error.rs C:\Users\Maria\ Guevara\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ark-serialize-0.4.2\src\flags.rs C:\Users\Maria\ Guevara\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ark-serialize-0.4.2\src\impls.rs C:\Users\Maria\ Guevara\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ark-serialize-0.4.2\src\../README.md
+
+C:\Users\Maria\ Guevara\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ark-serialize-0.4.2\src\lib.rs:
+C:\Users\Maria\ Guevara\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ark-serialize-0.4.2\src\error.rs:
+C:\Users\Maria\ Guevara\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ark-serialize-0.4.2\src\flags.rs:
+C:\Users\Maria\ Guevara\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ark-serialize-0.4.2\src\impls.rs:
+C:\Users\Maria\ Guevara\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\ark-serialize-0.4.2\src\../README.md:
