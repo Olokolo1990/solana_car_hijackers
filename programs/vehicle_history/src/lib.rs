@@ -66,6 +66,13 @@ pub mod vehicle_history {
 
     /// Authority-only: append an event to a vehicle's history. Enforces
     /// anti-rollback on mileage at the protocol level.
+    ///
+    /// `valid_from` / `valid_until` carry policy/inspection validity windows
+    /// (e.g. insurance coverage period, next inspection due date). 0 = N/A.
+    /// `block_driving` is honored only for Police via PoliceControl events.
+    /// `clear_driving_block` is honored only for InspectionStation via
+    /// Inspection events.
+    #[allow(clippy::too_many_arguments)]
     pub fn write_event(
         ctx: Context<WriteEvent>,
         event_type: u8,
@@ -73,12 +80,44 @@ pub mod vehicle_history {
         mileage_km: u32,
         doc_arweave_tx: [u8; 32],
         payload_hash: [u8; 32],
+        valid_from: i64,
+        valid_until: i64,
+        block_driving: bool,
+        clear_driving_block: bool,
     ) -> Result<()> {
         instructions::write_event::handler(
             ctx,
             event_type,
             timestamp,
             mileage_km,
+            doc_arweave_tx,
+            payload_hash,
+            valid_from,
+            valid_until,
+            block_driving,
+            clear_driving_block,
+        )
+    }
+
+    /// Government-only: register a vehicle (assign plates + first owner).
+    /// Updates the Vehicle's cached registration fields and writes a
+    /// Registration event into the timeline. Can be called multiple times for
+    /// re-registrations (import / change of jurisdiction).
+    pub fn register_vehicle(
+        ctx: Context<RegisterVehicle>,
+        license_plate: String,
+        owner_hash: [u8; 32],
+        registration_country: [u8; 2],
+        timestamp: i64,
+        doc_arweave_tx: [u8; 32],
+        payload_hash: [u8; 32],
+    ) -> Result<()> {
+        instructions::register_vehicle::handler(
+            ctx,
+            license_plate,
+            owner_hash,
+            registration_country,
+            timestamp,
             doc_arweave_tx,
             payload_hash,
         )

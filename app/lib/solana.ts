@@ -79,8 +79,26 @@ export async function fetchVehicleSummary(
 ): Promise<VehicleSummary | null> {
   const program = getReadOnlyProgram();
   const [pda] = deriveVehiclePda(vin);
-  const account = await program.account.vehicle.fetchNullable(pda);
+  // fetchNullable only catches "account does not exist". Any borsh deserialize
+  // error from a stale-layout account (e.g. minted under an older program
+  // version) propagates — wrap so the UI can treat both cases as "not found".
+  let account: Awaited<ReturnType<typeof program.account.vehicle.fetchNullable>>;
+  try {
+    account = await program.account.vehicle.fetchNullable(pda);
+  } catch (err) {
+    console.warn(
+      `fetchVehicleSummary: failed to deserialize Vehicle at ${pda.toBase58()} ` +
+        `(likely stale layout from an earlier program version):`,
+      err
+    );
+    return null;
+  }
   if (!account) return null;
+
+  const ownerHashBytes = account.currentOwnerHash as unknown as number[];
+  const countryBytes = account.registrationCountry as unknown as number[];
+  const isCountrySet = countryBytes[0] !== 0 || countryBytes[1] !== 0;
+
   return {
     vinHash: bytesToHex(account.vinHash as unknown as number[]),
     make: account.make,
@@ -90,6 +108,11 @@ export async function fetchVehicleSummary(
     lastMileage: account.lastMileage,
     eventCount: (account.eventCount as unknown as BN).toNumber(),
     createdAt: (account.createdAt as unknown as BN).toNumber(),
+    currentLicensePlate: account.currentLicensePlate,
+    currentOwnerHash: bytesToHex(ownerHashBytes),
+    registeredAtOfficial: (account.registeredAtOfficial as unknown as BN).toNumber(),
+    registrationCountry: isCountrySet ? decodeCountry(countryBytes) : "",
+    drivingBlockedSince: (account.drivingBlockedSince as unknown as BN).toNumber(),
   };
 }
 
@@ -98,7 +121,17 @@ export async function fetchVehicleEvents(
 ): Promise<VehicleEventView[]> {
   const program = getReadOnlyProgram();
   const [vehiclePda] = deriveVehiclePda(vin);
-  const vehicle = await program.account.vehicle.fetchNullable(vehiclePda);
+
+  let vehicle: Awaited<ReturnType<typeof program.account.vehicle.fetchNullable>>;
+  try {
+    vehicle = await program.account.vehicle.fetchNullable(vehiclePda);
+  } catch (err) {
+    console.warn(
+      `fetchVehicleEvents: stale Vehicle layout at ${vehiclePda.toBase58()}:`,
+      err
+    );
+    return [];
+  }
   if (!vehicle) return [];
 
   const eventCount = (vehicle.eventCount as unknown as BN).toNumber();
@@ -110,7 +143,17 @@ export async function fetchVehicleEvents(
     const [pda] = deriveEventPda(vehiclePda, BigInt(i));
     eventPdas.push(pda);
   }
-  const events = await program.account.vehicleEvent.fetchMultiple(eventPdas);
+  let events: Awaited<ReturnType<typeof program.account.vehicleEvent.fetchMultiple>>;
+  try {
+    events = await program.account.vehicleEvent.fetchMultiple(eventPdas);
+  } catch (err) {
+    console.warn(
+      `fetchVehicleEvents: stale VehicleEvent layout(s) under vehicle ` +
+        `${vehiclePda.toBase58()}:`,
+      err
+    );
+    return [];
+  }
 
   // Resolve unique authorities to enrich each event with kind + name.
   const uniqueAuthorityPdas = new Map<string, PublicKey>();
@@ -147,6 +190,8 @@ export async function fetchVehicleEvents(
         docArweaveTx: bytesToHex(ev.docArweaveTx as unknown as number[]),
         payloadHash: bytesToHex(ev.payloadHash as unknown as number[]),
         sequence: (ev.sequence as unknown as BN).toNumber(),
+        validFrom: (ev.validFrom as unknown as BN).toNumber(),
+        validUntil: (ev.validUntil as unknown as BN).toNumber(),
       };
     })
     .filter((x): x is VehicleEventView => x !== null);

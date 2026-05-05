@@ -42,6 +42,7 @@ pub struct WriteEvent<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn handler(
     ctx: Context<WriteEvent>,
     event_type: u8,
@@ -49,6 +50,10 @@ pub fn handler(
     mileage_km: u32,
     doc_arweave_tx: [u8; 32],
     payload_hash: [u8; 32],
+    valid_from: i64,
+    valid_until: i64,
+    block_driving: bool,
+    clear_driving_block: bool,
 ) -> Result<()> {
     let parsed_type = parse_event_type(event_type)?;
     enforce_authority_can_write(ctx.accounts.authority.kind, parsed_type)?;
@@ -57,6 +62,24 @@ pub fn handler(
         require!(
             mileage_km >= ctx.accounts.vehicle.last_mileage,
             VehiclePassportError::MileageRollback
+        );
+    }
+
+    // Driving block: only Police, only via PoliceControl, can set the lock.
+    if block_driving {
+        require!(
+            ctx.accounts.authority.kind == crate::state::AuthorityKind::Police as u8
+                && parsed_type == EventType::PoliceControl,
+            VehiclePassportError::BlockNotAllowed
+        );
+    }
+    // Driving block: only InspectionStation, only via Inspection, can clear it.
+    if clear_driving_block {
+        require!(
+            ctx.accounts.authority.kind
+                == crate::state::AuthorityKind::InspectionStation as u8
+                && parsed_type == EventType::Inspection,
+            VehiclePassportError::ClearBlockNotAllowed
         );
     }
 
@@ -72,20 +95,30 @@ pub fn handler(
     event.doc_arweave_tx = doc_arweave_tx;
     event.payload_hash = payload_hash;
     event.sequence = vehicle.event_count;
+    event.valid_from = valid_from;
+    event.valid_until = valid_until;
     event.bump = ctx.bumps.event;
 
     if parsed_type.requires_mileage() {
         vehicle.last_mileage = mileage_km;
     }
+    if block_driving {
+        vehicle.driving_blocked_since = Clock::get()?.unix_timestamp;
+    }
+    if clear_driving_block {
+        vehicle.driving_blocked_since = 0;
+    }
     vehicle.event_count = vehicle.event_count.saturating_add(1);
     authority.events_written = authority.events_written.saturating_add(1);
 
     msg!(
-        "event written: vehicle={} type={} mileage={} seq={}",
+        "event written: vehicle={} type={} mileage={} seq={} block_set={} block_cleared={}",
         vehicle.key(),
         event_type,
         mileage_km,
-        event.sequence
+        event.sequence,
+        block_driving,
+        clear_driving_block
     );
     Ok(())
 }
@@ -104,6 +137,8 @@ fn parse_event_type(raw: u8) -> Result<EventType> {
         9 => Ok(EventType::Import),
         10 => Ok(EventType::Recall),
         11 => Ok(EventType::Scrapping),
+        12 => Ok(EventType::PoliceControl),
+        13 => Ok(EventType::Registration),
         _ => Err(VehiclePassportError::UnknownEventType.into()),
     }
 }
@@ -115,7 +150,10 @@ fn enforce_authority_can_write(kind: u8, ev: EventType) -> Result<()> {
     let allowed = match kind {
         k if k == Police as u8 => matches!(
             ev,
-            EventType::Accident | EventType::Theft | EventType::Recovery
+            EventType::Accident
+                | EventType::Theft
+                | EventType::Recovery
+                | EventType::PoliceControl
         ),
         k if k == InspectionStation as u8 => matches!(
             ev,

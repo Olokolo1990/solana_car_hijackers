@@ -62,6 +62,17 @@ export interface VehicleSummary {
   lastMileage: number;
   eventCount: number;
   createdAt: number;
+  // === Registration cache (added in v2 redeploy) ===
+  /** "" if vehicle is not yet officially registered. */
+  currentLicensePlate: string;
+  /** hex-encoded; "00..00" if no owner set. */
+  currentOwnerHash: string;
+  /** 0 if not yet registered. */
+  registeredAtOfficial: number;
+  /** Decoded ISO-2 string ("PL", "DE", …) or "" if not registered. */
+  registrationCountry: string;
+  /** 0 if driving is permitted; otherwise unix timestamp when Police set the block. */
+  drivingBlockedSince: number;
 }
 
 export interface VehicleEvent {
@@ -75,4 +86,8 @@ export interface VehicleEvent {
   docArweaveTx: string;
   payloadHash: string;
   sequence: number;
+  /** 0 if not applicable (e.g. insurance policy start). */
+  validFrom: number;
+  /** 0 if not applicable (e.g. insurance expiry, next inspection due). */
+  validUntil: number;
 }

@@ -13,6 +13,10 @@ pub struct VehicleEvent {
     pub doc_arweave_tx: [u8; 32],    // pointer to Arweave-stored documents/photos
     pub payload_hash: [u8; 32],      // sha256 of full structured JSON payload on Arweave
     pub sequence: u64,               // event_count at the time of write
+    /// Validity window start (e.g. insurance policy start). 0 = N/A.
+    pub valid_from: i64,
+    /// Validity window end (e.g. insurance expiry, next inspection due). 0 = N/A.
+    pub valid_until: i64,
     pub bump: u8,
 }
 
@@ -31,6 +35,8 @@ pub enum EventType {
     Import = 9,
     Recall = 10,
     Scrapping = 11,
+    PoliceControl = 12,
+    Registration = 13,
 }
 
 impl EventType {
@@ -41,6 +47,7 @@ impl EventType {
                 | EventType::MileageReading
                 | EventType::Accident
                 | EventType::Service
+                | EventType::PoliceControl
         )
     }
 }

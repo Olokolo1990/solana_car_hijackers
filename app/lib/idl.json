@@ -317,6 +317,188 @@
       ]
     },
     {
+      "name": "register_vehicle",
+      "docs": [
+        "Government-only: register a vehicle (assign plates + first owner).",
+        "Updates the Vehicle's cached registration fields and writes a",
+        "Registration event into the timeline. Can be called multiple times for",
+        "re-registrations (import / change of jurisdiction)."
+      ],
+      "discriminator": [
+        249,
+        150,
+        162,
+        65,
+        231,
+        141,
+        147,
+        105
+      ],
+      "accounts": [
+        {
+          "name": "gov_signer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "gov_signer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vehicle",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  101,
+                  104,
+                  105,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vehicle.vin_hash",
+                "account": "Vehicle"
+              }
+            ]
+          }
+        },
+        {
+          "name": "event",
+          "docs": [
+            "New event slot in the vehicle's timeline (Registration event)."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  118,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vehicle"
+              },
+              {
+                "kind": "account",
+                "path": "vehicle.event_count",
+                "account": "Vehicle"
+              }
+            ]
+          }
+        },
+        {
+          "name": "global_config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "license_plate",
+          "type": "string"
+        },
+        {
+          "name": "owner_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "registration_country",
+          "type": {
+            "array": [
+              "u8",
+              2
+            ]
+          }
+        },
+        {
+          "name": "timestamp",
+          "type": "i64"
+        },
+        {
+          "name": "doc_arweave_tx",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "payload_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "revoke_authority",
       "docs": [
         "Admin-only: revoke an existing authority. Past events written by it",
@@ -529,7 +711,13 @@
       "name": "write_event",
       "docs": [
         "Authority-only: append an event to a vehicle's history. Enforces",
-        "anti-rollback on mileage at the protocol level."
+        "anti-rollback on mileage at the protocol level.",
+        "",
+        "`valid_from` / `valid_until` carry policy/inspection validity windows",
+        "(e.g. insurance coverage period, next inspection due date). 0 = N/A.",
+        "`block_driving` is honored only for Police via PoliceControl events.",
+        "`clear_driving_block` is honored only for InspectionStation via",
+        "Inspection events."
       ],
       "discriminator": [
         49,
@@ -663,6 +851,22 @@
               32
             ]
           }
+        },
+        {
+          "name": "valid_from",
+          "type": "i64"
+        },
+        {
+          "name": "valid_until",
+          "type": "i64"
+        },
+        {
+          "name": "block_driving",
+          "type": "bool"
+        },
+        {
+          "name": "clear_driving_block",
+          "type": "bool"
         }
       ]
     }
@@ -766,6 +970,21 @@
       "code": 6008,
       "name": "UnknownEventType",
       "msg": "Event type is not recognized"
+    },
+    {
+      "code": 6009,
+      "name": "NotGovernment",
+      "msg": "Only a registration office (government) can perform this action"
+    },
+    {
+      "code": 6010,
+      "name": "BlockNotAllowed",
+      "msg": "Driving block can only be set by Police via PoliceControl event"
+    },
+    {
+      "code": 6011,
+      "name": "ClearBlockNotAllowed",
+      "msg": "Driving block can only be cleared by InspectionStation via Inspection event"
     }
   ],
   "types": [
@@ -907,6 +1126,50 @@
             "type": "i64"
           },
           {
+            "name": "registered_at_official",
+            "docs": [
+              "0 = vehicle has not yet been officially registered by a Government authority."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "registration_country",
+            "docs": [
+              "ISO-3166 alpha-2 country of current registration. [0,0] = none."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                2
+              ]
+            }
+          },
+          {
+            "name": "current_license_plate",
+            "type": "string"
+          },
+          {
+            "name": "current_owner_hash",
+            "docs": [
+              "SHA-256 of the current owner's identifier. Zero array = no owner set."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "driving_blocked_since",
+            "docs": [
+              "0 = driving permitted. Otherwise, unix timestamp when Police set the",
+              "block. Has no automatic expiry — only an InspectionStation can clear",
+              "it via an Inspection event with `clear_driving_block = true`."
+            ],
+            "type": "i64"
+          },
+          {
             "name": "bump",
             "type": "u8"
           }
@@ -963,6 +1226,20 @@
           {
             "name": "sequence",
             "type": "u64"
+          },
+          {
+            "name": "valid_from",
+            "docs": [
+              "Validity window start (e.g. insurance policy start). 0 = N/A."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "valid_until",
+            "docs": [
+              "Validity window end (e.g. insurance expiry, next inspection due). 0 = N/A."
+            ],
+            "type": "i64"
           },
           {
             "name": "bump",

@@ -20,4 +20,10 @@ pub enum VehiclePassportError {
     StringTooLong,
     #[msg("Event type is not recognized")]
     UnknownEventType,
+    #[msg("Only a registration office (government) can perform this action")]
+    NotGovernment,
+    #[msg("Driving block can only be set by Police via PoliceControl event")]
+    BlockNotAllowed,
+    #[msg("Driving block can only be cleared by InspectionStation via Inspection event")]
+    ClearBlockNotAllowed,
 }

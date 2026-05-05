@@ -323,6 +323,188 @@ export type VehicleHistory = {
       ]
     },
     {
+      "name": "registerVehicle",
+      "docs": [
+        "Government-only: register a vehicle (assign plates + first owner).",
+        "Updates the Vehicle's cached registration fields and writes a",
+        "Registration event into the timeline. Can be called multiple times for",
+        "re-registrations (import / change of jurisdiction)."
+      ],
+      "discriminator": [
+        249,
+        150,
+        162,
+        65,
+        231,
+        141,
+        147,
+        105
+      ],
+      "accounts": [
+        {
+          "name": "govSigner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "govSigner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "vehicle",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  118,
+                  101,
+                  104,
+                  105,
+                  99,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vehicle.vin_hash",
+                "account": "vehicle"
+              }
+            ]
+          }
+        },
+        {
+          "name": "event",
+          "docs": [
+            "New event slot in the vehicle's timeline (Registration event)."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  118,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "vehicle"
+              },
+              {
+                "kind": "account",
+                "path": "vehicle.event_count",
+                "account": "vehicle"
+              }
+            ]
+          }
+        },
+        {
+          "name": "globalConfig",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  108,
+                  111,
+                  98,
+                  97,
+                  108,
+                  95,
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "systemProgram",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "licensePlate",
+          "type": "string"
+        },
+        {
+          "name": "ownerHash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "registrationCountry",
+          "type": {
+            "array": [
+              "u8",
+              2
+            ]
+          }
+        },
+        {
+          "name": "timestamp",
+          "type": "i64"
+        },
+        {
+          "name": "docArweaveTx",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "payloadHash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "revokeAuthority",
       "docs": [
         "Admin-only: revoke an existing authority. Past events written by it",
@@ -535,7 +717,13 @@ export type VehicleHistory = {
       "name": "writeEvent",
       "docs": [
         "Authority-only: append an event to a vehicle's history. Enforces",
-        "anti-rollback on mileage at the protocol level."
+        "anti-rollback on mileage at the protocol level.",
+        "",
+        "`valid_from` / `valid_until` carry policy/inspection validity windows",
+        "(e.g. insurance coverage period, next inspection due date). 0 = N/A.",
+        "`block_driving` is honored only for Police via PoliceControl events.",
+        "`clear_driving_block` is honored only for InspectionStation via",
+        "Inspection events."
       ],
       "discriminator": [
         49,
@@ -669,6 +857,22 @@ export type VehicleHistory = {
               32
             ]
           }
+        },
+        {
+          "name": "validFrom",
+          "type": "i64"
+        },
+        {
+          "name": "validUntil",
+          "type": "i64"
+        },
+        {
+          "name": "blockDriving",
+          "type": "bool"
+        },
+        {
+          "name": "clearDrivingBlock",
+          "type": "bool"
         }
       ]
     }
@@ -772,6 +976,21 @@ export type VehicleHistory = {
       "code": 6008,
       "name": "unknownEventType",
       "msg": "Event type is not recognized"
+    },
+    {
+      "code": 6009,
+      "name": "notGovernment",
+      "msg": "Only a registration office (government) can perform this action"
+    },
+    {
+      "code": 6010,
+      "name": "blockNotAllowed",
+      "msg": "Driving block can only be set by Police via PoliceControl event"
+    },
+    {
+      "code": 6011,
+      "name": "clearBlockNotAllowed",
+      "msg": "Driving block can only be cleared by InspectionStation via Inspection event"
     }
   ],
   "types": [
@@ -913,6 +1132,50 @@ export type VehicleHistory = {
             "type": "i64"
           },
           {
+            "name": "registeredAtOfficial",
+            "docs": [
+              "0 = vehicle has not yet been officially registered by a Government authority."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "registrationCountry",
+            "docs": [
+              "ISO-3166 alpha-2 country of current registration. [0,0] = none."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                2
+              ]
+            }
+          },
+          {
+            "name": "currentLicensePlate",
+            "type": "string"
+          },
+          {
+            "name": "currentOwnerHash",
+            "docs": [
+              "SHA-256 of the current owner's identifier. Zero array = no owner set."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "drivingBlockedSince",
+            "docs": [
+              "0 = driving permitted. Otherwise, unix timestamp when Police set the",
+              "block. Has no automatic expiry — only an InspectionStation can clear",
+              "it via an Inspection event with `clear_driving_block = true`."
+            ],
+            "type": "i64"
+          },
+          {
             "name": "bump",
             "type": "u8"
           }
@@ -969,6 +1232,20 @@ export type VehicleHistory = {
           {
             "name": "sequence",
             "type": "u64"
+          },
+          {
+            "name": "validFrom",
+            "docs": [
+              "Validity window start (e.g. insurance policy start). 0 = N/A."
+            ],
+            "type": "i64"
+          },
+          {
+            "name": "validUntil",
+            "docs": [
+              "Validity window end (e.g. insurance expiry, next inspection due). 0 = N/A."
+            ],
+            "type": "i64"
           },
           {
             "name": "bump",
