@@ -75,6 +75,16 @@ export interface VehicleSummary {
   drivingBlockedSince: number;
 }
 
+export interface AuthoritySummary {
+  signer: string;
+  kind: AuthorityKind;
+  countryCode: string;
+  name: string;
+  active: boolean;
+  eventsWritten: number;
+  registeredAt: number;
+}
+
 export interface VehicleEvent {
   vehicle: string;
   authority: string;

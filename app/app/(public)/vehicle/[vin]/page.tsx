@@ -13,7 +13,6 @@ export const dynamic = "force-dynamic"; // always read fresh chain state
 export default async function VehicleDetail({ params }: PageProps) {
   const vin = decodeURIComponent(params.vin).toUpperCase();
 
-  // Server-rendered: both fetches run in Node before HTML is sent.
   const [summary, events] = await Promise.all([
     fetchVehicleSummary(vin),
     fetchVehicleEvents(vin),
@@ -31,6 +30,59 @@ export default async function VehicleDetail({ params }: PageProps) {
         </p>
       ) : (
         <>
+          {/* Driving-block banner — shown when Police set vehicle.driving_blocked_since > 0 */}
+          {summary.drivingBlockedSince > 0 && (
+            <div
+              style={{
+                marginBottom: "1rem",
+                padding: "0.75rem 1rem",
+                borderRadius: 8,
+                background: "#fef2f2",
+                border: "2px solid #ef4444",
+                color: "#7f1d1d",
+              }}
+            >
+              <strong>DRIVING BLOCKED</strong> — Police set this block on{" "}
+              {new Date(summary.drivingBlockedSince * 1000).toLocaleDateString()}.{" "}
+              The vehicle must pass technical inspection before legal use.
+            </div>
+          )}
+
+          {/* Registration card — shown when Government has registered the vehicle */}
+          {summary.registeredAtOfficial > 0 && (
+            <div
+              style={{
+                marginBottom: "1.5rem",
+                padding: "1rem 1.25rem",
+                borderRadius: 8,
+                background: "#f0f9ff",
+                border: "1px solid #93c5fd",
+              }}
+            >
+              <div style={{ fontSize: "0.78rem", color: "#1e40af", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                Registered
+              </div>
+              <div style={{ display: "flex", gap: "1.5rem", marginTop: "0.4rem", flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>License plate</div>
+                  <div style={{ fontFamily: "monospace", fontSize: "1.1rem", fontWeight: 600 }}>
+                    {summary.currentLicensePlate || "—"}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>Country</div>
+                  <div style={{ fontWeight: 500 }}>{summary.registrationCountry || "—"}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>Date</div>
+                  <div style={{ fontWeight: 500 }}>
+                    {new Date(summary.registeredAtOfficial * 1000).toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div
             style={{
               border: "1px solid #e5e7eb",
@@ -51,7 +103,7 @@ export default async function VehicleDetail({ params }: PageProps) {
             />
             <Field label="Total events" value={String(summary.eventCount)} />
             <Field
-              label="Registered"
+              label="Created on-chain"
               value={new Date(summary.createdAt * 1000).toLocaleDateString()}
             />
           </div>
@@ -73,6 +125,17 @@ export default async function VehicleDetail({ params }: PageProps) {
                   <div style={{ color: "#6b7280", fontSize: "0.9rem" }}>
                     by {AuthorityKindLabel[ev.authorityKind]} — {ev.authorityName}
                   </div>
+                  {(ev.validFrom > 0 || ev.validUntil > 0) && (
+                    <div style={{ color: "#6b7280", fontSize: "0.85rem" }}>
+                      {ev.validFrom > 0 && (
+                        <>valid from {new Date(ev.validFrom * 1000).toLocaleDateString()}</>
+                      )}
+                      {ev.validFrom > 0 && ev.validUntil > 0 && " — "}
+                      {ev.validUntil > 0 && (
+                        <>until {new Date(ev.validUntil * 1000).toLocaleDateString()}</>
+                      )}
+                    </div>
+                  )}
                 </li>
               ))}
             </ol>

@@ -1,14 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useAnchorWallet } from "@solana/wallet-adapter-react";
+import { BN } from "@coral-xyz/anchor";
+import { Keypair } from "@solana/web3.js";
 import {
   AuthorityKind,
   AuthorityKindLabel,
   EventType,
   EventTypeLabel,
+  type AuthoritySummary,
   type VehicleSummary,
 } from "@/types/events";
-import { fetchVehicleSummary } from "@/lib/solana";
+import {
+  deriveEventPda,
+  deriveVehiclePda,
+  fetchAuthority,
+  fetchVehicleSummary,
+  vinHash as computeVinHash,
+} from "@/lib/solana";
+import { getProgram } from "@/lib/program";
 
 // === On-chain VIN lookup state ===
 type VinStatus =
@@ -173,7 +184,16 @@ const EURO_STANDARDS = [
 
 // === Page ===
 
+type SubmissionResult =
+  | { kind: "success"; tx: string }
+  | { kind: "error"; message: string }
+  | null;
+
 export default function WriteEventPage() {
+  const wallet = useAnchorWallet();
+  const [authority, setAuthority] = useState<AuthoritySummary | null | "loading">("loading");
+  const [submission, setSubmission] = useState<SubmissionResult>(null);
+
   const [vin, setVin] = useState("");
   const [vinStatus, setVinStatus] = useState<VinStatus>({ kind: "idle" });
   const [roleKey, setRoleKey] = useState<AuthorityKind | "">("");
@@ -287,6 +307,29 @@ export default function WriteEventPage() {
     else if (vinStatus.kind === "not_found") setVehicleOrigin("imported");
   }, [action, vinStatus.kind]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Fetch the connected wallet's Authority record on every wallet change.
+  useEffect(() => {
+    let cancelled = false;
+    if (!wallet) {
+      setAuthority(null);
+      return;
+    }
+    setAuthority("loading");
+    fetchAuthority(wallet.publicKey)
+      .then((res) => {
+        if (!cancelled) setAuthority(res);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.error("fetchAuthority failed", err);
+          setAuthority(null);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [wallet]);
+
   function onAttachmentsAdd(e: React.ChangeEvent<HTMLInputElement>) {
     const incoming = Array.from(e.target.files ?? []);
     if (incoming.length === 0) return;
@@ -319,175 +362,263 @@ export default function WriteEventPage() {
   }, []);
 
   // --- Validation ---
-  function isFormValid(): boolean {
-    if (vin.trim().length !== 17) return false;
-    // Block submit while we don't have a confirmed answer from chain.
-    if (vinStatus.kind === "loading" || vinStatus.kind === "error") return false;
-    if (!role || !action) return false;
+  // Returns the list of missing/blocking fields. Empty list = form valid.
+  function missingFields(): string[] {
+    const missing: string[] = [];
+    if (vin.trim().length !== 17) missing.push(`VIN (${vin.length}/17)`);
+    if (vinStatus.kind === "loading") missing.push("waiting for VIN lookup");
+    if (vinStatus.kind === "error") missing.push("VIN lookup failed");
+    if (!role) missing.push("Role");
+    if (!action) missing.push("Action");
+    if (!role || !action) return missing;
 
     // On-chain existence gates
-    if (action.kind === "create_vehicle" && vinStatus.kind === "found") return false;
-    if (action.kind === "write_event" && vinStatus.kind === "not_found") return false;
-    // register_vehicle is allowed in both states; the "Imported" branch handles the mint-stub.
+    if (action.kind === "create_vehicle" && vinStatus.kind === "found")
+      missing.push("VIN already on-chain (cannot mint again)");
+    if (action.kind === "write_event" && vinStatus.kind === "not_found")
+      missing.push("VIN not on-chain (cannot write events yet)");
 
     if (action.kind === "create_vehicle") {
-      return !!(make && model && year && bodyType && fuelType && transmission && powerHp && weightKg && colorName && countryOfOrigin.length === 2);
+      if (!make) missing.push("Make");
+      if (!model) missing.push("Model");
+      if (!year) missing.push("Year");
+      if (!bodyType) missing.push("Body type");
+      if (!fuelType) missing.push("Fuel type");
+      if (!transmission) missing.push("Transmission");
+      if (!powerHp) missing.push("Power (hp)");
+      if (!weightKg) missing.push("Kerb weight (kg)");
+      if (!colorName) missing.push("Color name");
+      if (countryOfOrigin.length !== 2)
+        missing.push(`Country of origin (ISO-2, ${countryOfOrigin.length}/2)`);
+      return missing;
     }
     if (action.kind === "register_vehicle") {
-      const baseOk =
-        !!(licensePlate.trim() && regCountry.length === 2 && ownerName.trim() &&
-           registrationDate && vehicleCategory && euroStd && maxMassKg);
-      if (!baseOk) return false;
+      if (!licensePlate.trim()) missing.push("License plate");
+      if (regCountry.length !== 2)
+        missing.push(`Registration country (ISO-2, ${regCountry.length}/2)`);
+      if (!ownerName.trim()) missing.push("Owner name");
+      if (!registrationDate) missing.push("Registration date");
+      if (!vehicleCategory) missing.push("Vehicle category");
+      if (!euroStd) missing.push("Euro emission standard");
+      if (!maxMassKg) missing.push("Max permissible mass");
       if (vehicleOrigin === "imported") {
-        // Stub-mint passport requires the manufacturer-side identity too.
-        return !!(make && model && year && bodyType && fuelType && transmission && powerHp && weightKg && colorName);
+        if (!make) missing.push("Make (stub-mint)");
+        if (!model) missing.push("Model (stub-mint)");
+        if (!year) missing.push("Year (stub-mint)");
+        if (!bodyType) missing.push("Body type (stub-mint)");
+        if (!fuelType) missing.push("Fuel type (stub-mint)");
+        if (!transmission) missing.push("Transmission (stub-mint)");
+        if (!powerHp) missing.push("Power hp (stub-mint)");
+        if (!weightKg) missing.push("Weight kg (stub-mint)");
+        if (!colorName) missing.push("Color name (stub-mint)");
       }
-      return true;
+      return missing;
     }
-    if (action.requiresMileage && !mileage) return false;
-    if (action.requiresValidFrom && !validFrom) return false;
-    if (action.requiresValidUntil && !validUntil) return false;
-    if (description.trim().length === 0) return false;
-    return true;
+    // write_event
+    if (action.requiresMileage && !mileage) missing.push("Mileage");
+    if (action.requiresValidFrom && !validFrom)
+      missing.push(action.validFromLabel ?? "Valid from");
+    if (action.requiresValidUntil && !validUntil)
+      missing.push(action.validUntilLabel ?? "Valid until");
+    if (description.trim().length === 0) missing.push("Description");
+    return missing;
+  }
+
+  function isFormValid(): boolean {
+    return missingFields().length === 0;
+  }
+
+  // --- Helpers ---
+  // Hash any structured payload (description + dates + photo metadata) →
+  // sha256 hex bytes (32). Stand-in for the real Arweave manifest hash.
+  async function hashManifest(obj: unknown): Promise<number[]> {
+    const json = JSON.stringify(obj);
+    const buf = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(json)
+    );
+    return Array.from(new Uint8Array(buf));
+  }
+  async function hashOwner(input: string): Promise<number[]> {
+    const buf = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(input.trim())
+    );
+    return Array.from(new Uint8Array(buf));
+  }
+
+  function explorerTxUrl(sig: string): string {
+    return `https://explorer.solana.com/tx/${sig}?cluster=devnet`;
+  }
+
+  function prettifyAnchorError(err: unknown): string {
+    const msg = err instanceof Error ? err.message : String(err);
+    // Surface AnchorError code if present.
+    const m = msg.match(/Error Code: (\w+)\..*Error Message: ([^.]+)/s);
+    if (m) return `${m[1]} — ${m[2]}`;
+    return msg.length > 240 ? msg.slice(0, 240) + "…" : msg;
   }
 
   // --- Submit ---
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setSubmission(null);
     if (!isFormValid() || !role || !action) return;
+    if (!wallet) {
+      setSubmission({
+        kind: "error",
+        message: "Wallet not connected. Click 'Select Wallet' to connect Phantom or Solflare.",
+      });
+      return;
+    }
     setSubmitting(true);
     try {
-      const base = {
-        vin: vin.trim().toUpperCase(),
-        role: role.label,
-        roleKind: role.key,
-        timestamp: Math.floor(Date.now() / 1000),
-      };
-      let payload: Record<string, unknown>;
+      const program = getProgram(wallet);
+      const cleanVin = vin.trim().toUpperCase();
+      const vinHashArr = Array.from(computeVinHash(cleanVin)) as number[];
+      // Placeholder for Arweave manifest tx ID (32 bytes). Real Arweave
+      // upload via Irys SDK is a separate task.
+      const docArweaveTx = new Array(32).fill(0) as number[];
+
+      let tx: string;
+
       if (action.kind === "create_vehicle") {
-        payload = {
-          ...base,
-          instruction: "mint_vehicle_passport",
-          make,
-          model,
-          year: Number(year),
-          bodyType,
+        // equipment_hash is anchored on-chain as a sha-256 of a structured
+        // manifest of the form fields. Photo upload to decentralized
+        // storage is deferred to a later iteration.
+        const equipmentManifest = {
           fuelType,
           transmission,
           engineCc: engineCc ? Number(engineCc) : null,
           powerHp: Number(powerHp),
           weightKg: Number(weightKg),
+          bodyType,
           seats: Number(seats),
           colorName,
           colorHex,
           countryOfOrigin: countryOfOrigin.toUpperCase(),
           equipment: equipment.trim(),
-          attachments: attachments.map((a) => ({
-            name: a.file.name,
-            sizeBytes: a.file.size,
-            type: a.file.type,
-          })),
         };
+        const equipmentHashArr = await hashManifest(equipmentManifest);
+        const mintPlaceholder = Keypair.generate().publicKey;
+        tx = await program.methods
+          .mintVehiclePassport(
+            vinHashArr as unknown as number[] & { length: 32 },
+            make,
+            model,
+            Number(year),
+            parseInt(colorHex.slice(1), 16),
+            equipmentHashArr as unknown as number[] & { length: 32 }
+          )
+          .accountsPartial({
+            manufacturerSigner: wallet.publicKey,
+            mintPlaceholder,
+          })
+          .rpc();
       } else if (action.kind === "register_vehicle") {
-        // owner_hash and owner_address_hash are computed client-side; raw values
-        // stay off-chain (in the Arweave manifest) per the privacy model.
-        async function sha256Hex(input: string): Promise<string> {
-          const buf = await crypto.subtle.digest(
-            "SHA-256",
-            new TextEncoder().encode(input.trim())
+        if (vehicleOrigin === "imported") {
+          throw new Error(
+            "Imported / pre-blockchain registration requires a stub-mint by a Manufacturer-kind authority. Multi-instruction flow not yet wired in this build — connect a Manufacturer wallet first to mint, then a Government wallet to register."
           );
-          return Array.from(new Uint8Array(buf))
-            .map((b) => b.toString(16).padStart(2, "0"))
-            .join("");
         }
-        const ownerHashHex = await sha256Hex(ownerName);
-        const ownerAddressHashHex = ownerAddress.trim()
-          ? await sha256Hex(ownerAddress)
-          : null;
-
-        const certificate = {
-          // EU Directive 1999/37/EC code mapping
+        if (vinStatus.kind !== "found") {
+          throw new Error("Vehicle not found on-chain (lookup state changed).");
+        }
+        const [vehiclePda] = deriveVehiclePda(cleanVin);
+        const sequence = BigInt(vinStatus.summary.eventCount);
+        const [eventPda] = deriveEventPda(vehiclePda, sequence);
+        const ownerHashArr = await hashOwner(ownerName);
+        const countryBytes = [
+          regCountry.charCodeAt(0),
+          regCountry.charCodeAt(1),
+        ] as number[];
+        const certManifest = {
           A_licensePlate: licensePlate.trim().toUpperCase(),
           B_firstRegistrationDateUnix: firstRegDate
             ? Math.floor(new Date(firstRegDate).getTime() / 1000)
             : 0,
-          I_currentRegistrationDateUnix: Math.floor(
-            new Date(registrationDate).getTime() / 1000
-          ),
-          C_owner: { name: ownerName.trim(), address: ownerAddress.trim() || null },
-          E_vinHashUpper: vin.trim().toUpperCase(),
+          C_owner: { nameProvided: !!ownerName, addressProvided: !!ownerAddress },
           F2_maxPermissibleMassKg: Number(maxMassKg),
           J_vehicleCategory: vehicleCategory,
           K_typeApproval: typeApproval.trim() || null,
           P5_engineNumber: engineNumber.trim() || null,
           V7_co2Gkm: co2Gkm ? Number(co2Gkm) : null,
           V9_euroStandard: euroStd,
-          registrationCountry: regCountry.toUpperCase(),
-        };
-
-        const stubPassport =
-          vehicleOrigin === "imported"
-            ? {
-                make,
-                model,
-                year: Number(year),
-                bodyType,
-                fuelType,
-                transmission,
-                engineCc: engineCc ? Number(engineCc) : null,
-                powerHp: Number(powerHp),
-                weightKg: Number(weightKg),
-                seats: Number(seats),
-                colorName,
-                colorHex,
-                countryOfOrigin: countryOfOrigin.toUpperCase(),
-                equipment: equipment.trim(),
-              }
-            : null;
-
-        payload = {
-          ...base,
-          instruction: "register_vehicle",
-          vehicleOrigin,
-          stubPassport, // null = passport already exists; otherwise mint stub first
-          certificate,
-          ownerHashHex,
-          ownerAddressHashHex,
           description: description.trim(),
-          attachments: attachments.map((a) => ({
-            name: a.file.name,
-            sizeBytes: a.file.size,
-            type: a.file.type,
-          })),
+          photoNames: attachments.map((a) => a.file.name),
         };
+        const payloadHashArr = await hashManifest(certManifest);
+        tx = await program.methods
+          .registerVehicle(
+            licensePlate.trim().toUpperCase(),
+            ownerHashArr as unknown as number[] & { length: 32 },
+            countryBytes as unknown as number[] & { length: 2 },
+            new BN(Math.floor(new Date(registrationDate).getTime() / 1000)),
+            docArweaveTx as unknown as number[] & { length: 32 },
+            payloadHashArr as unknown as number[] & { length: 32 }
+          )
+          .accountsPartial({
+            govSigner: wallet.publicKey,
+            vehicle: vehiclePda,
+            event: eventPda,
+          })
+          .rpc();
       } else {
-        payload = {
-          ...base,
-          instruction: "write_event",
+        // write_event
+        if (vinStatus.kind !== "found") {
+          throw new Error("Vehicle not found on-chain (lookup state changed).");
+        }
+        const [vehiclePda] = deriveVehiclePda(cleanVin);
+        const sequence = BigInt(vinStatus.summary.eventCount);
+        const [eventPda] = deriveEventPda(vehiclePda, sequence);
+        const eventManifest = {
           eventType: action.label,
-          eventTypeId: action.type,
-          mileageKm: action.requiresMileage ? Number(mileage) : 0,
-          validFromUnix: action.requiresValidFrom ? Math.floor(new Date(validFrom).getTime() / 1000) : 0,
-          validUntilUnix: action.requiresValidUntil ? Math.floor(new Date(validUntil).getTime() / 1000) : 0,
-          blockDriving: action.allowsBlockDriving ? blockDriving : false,
-          clearDrivingBlock: action.allowsClearBlock ? clearBlock : false,
           description: description.trim(),
-          attachments: attachments.map((a) => ({
-            name: a.file.name,
-            sizeBytes: a.file.size,
-            type: a.file.type,
-          })),
+          photoNames: attachments.map((a) => a.file.name),
+          validFrom: action.requiresValidFrom ? validFrom : null,
+          validUntil: action.requiresValidUntil ? validUntil : null,
+          mileageKm: action.requiresMileage ? Number(mileage) : null,
         };
+        const payloadHashArr = await hashManifest(eventManifest);
+        tx = await program.methods
+          .writeEvent(
+            action.type,
+            new BN(Math.floor(Date.now() / 1000)),
+            action.requiresMileage ? Number(mileage) : 0,
+            docArweaveTx as unknown as number[] & { length: 32 },
+            payloadHashArr as unknown as number[] & { length: 32 },
+            new BN(
+              action.requiresValidFrom
+                ? Math.floor(new Date(validFrom).getTime() / 1000)
+                : 0
+            ),
+            new BN(
+              action.requiresValidUntil
+                ? Math.floor(new Date(validUntil).getTime() / 1000)
+                : 0
+            ),
+            action.allowsBlockDriving ? blockDriving : false,
+            action.allowsClearBlock ? clearBlock : false
+          )
+          .accountsPartial({
+            authoritySigner: wallet.publicKey,
+            vehicle: vehiclePda,
+            event: eventPda,
+          })
+          .rpc();
       }
-      console.log("[mock writer submission]", payload);
-      alert(
-        "Mock submission accepted (check console for the structured payload).\n\n" +
-          "Real chain submission will be wired after the contract redeploy."
-      );
+      setSubmission({ kind: "success", tx });
+    } catch (err) {
+      console.error("submit failed", err);
+      setSubmission({
+        kind: "error",
+        message: prettifyAnchorError(err),
+      });
     } finally {
       setSubmitting(false);
     }
   }
+
 
   // === Styles ===
   const fieldStyle: React.CSSProperties = { display: "grid", gap: "0.35rem" };
@@ -600,14 +731,88 @@ export default function WriteEventPage() {
     </>
   );
 
+  // Mismatch warning when the connected wallet's authority kind doesn't match
+  // the role the user picked. We still allow submit — the chain rejects
+  // server-side — but surface it ahead of time so the user knows.
+  const authorityMismatch = (() => {
+    if (!wallet || authority === "loading" || !role) return null;
+    if (authority === null)
+      return `Connected wallet ${wallet.publicKey.toBase58().slice(0, 4)}…${wallet.publicKey.toBase58().slice(-4)} is not registered as an authority on-chain. The chain will reject any submission.`;
+    if (!authority.active)
+      return `Connected wallet's authority is currently revoked. Submissions will fail.`;
+    // Manufacturer/Service role expects either Manufacturer (mint) or
+    // AuthorizedServiceCenter (write events).
+    const expected = role.key;
+    if (
+      role.key === AuthorityKind.AuthorizedServiceCenter &&
+      (authority.kind === AuthorityKind.Manufacturer ||
+        authority.kind === AuthorityKind.AuthorizedServiceCenter)
+    ) {
+      return null;
+    }
+    if (authority.kind !== expected) {
+      return `Connected wallet is registered as ${AuthorityKindLabel[authority.kind]}, but the picked role expects ${AuthorityKindLabel[expected]}. The chain will reject this submission.`;
+    }
+    return null;
+  })();
+
   return (
     <section style={{ maxWidth: 760, margin: "2rem auto", padding: "0 1rem" }}>
       <h1>Submit event</h1>
       <p style={hintStyle}>
         Authorized institutions append events (or mint new vehicles) on the
-        on-chain registry. In production, your wallet&apos;s registered
-        authority kind determines which roles you can act as.
+        on-chain registry. The chain enforces which roles your wallet can act
+        as based on its registered authority kind.
       </p>
+
+      {/* Authority panel */}
+      {wallet && (
+        <div
+          style={{
+            marginTop: "1rem",
+            padding: "0.6rem 0.85rem",
+            borderRadius: 6,
+            fontSize: "0.85rem",
+            border: "1px solid",
+            ...(authority === "loading"
+              ? { background: "#f3f4f6", borderColor: "#d1d5db", color: "#374151" }
+              : authority === null
+              ? { background: "#fee2e2", borderColor: "#fca5a5", color: "#991b1b" }
+              : authority.active
+              ? { background: "#d1fae5", borderColor: "#6ee7b7", color: "#065f46" }
+              : { background: "#fef3c7", borderColor: "#fcd34d", color: "#92400e" }),
+          }}
+        >
+          {authority === "loading" && "Looking up authority record on-chain…"}
+          {authority === null && (
+            <>This wallet is <strong>not registered as an authority</strong>. Ask the admin to call <code>register_authority</code> for your pubkey.</>
+          )}
+          {authority && authority !== "loading" && (
+            <>
+              <strong>Registered authority</strong>: {AuthorityKindLabel[authority.kind]}{" "}
+              ({authority.countryCode}) — &quot;{authority.name}&quot;,{" "}
+              {authority.eventsWritten} event(s) written, {authority.active ? "active" : "REVOKED"}.
+            </>
+          )}
+        </div>
+      )}
+
+      {authorityMismatch && (
+        <div
+          style={{
+            marginTop: "0.5rem",
+            padding: "0.55rem 0.75rem",
+            borderRadius: 6,
+            fontSize: "0.85rem",
+            background: "#fef3c7",
+            borderColor: "#fcd34d",
+            border: "1px solid #fcd34d",
+            color: "#92400e",
+          }}
+        >
+          {authorityMismatch}
+        </div>
+      )}
 
       <form onSubmit={onSubmit} style={{ display: "grid", gap: "1.2rem", marginTop: "1.5rem" }}>
         {/* VIN — always */}
@@ -826,10 +1031,6 @@ export default function WriteEventPage() {
               </label>
             </div>
 
-            <div style={sectionStyle}>
-              <p style={sectionTitleStyle}>Photos (optional)</p>
-              {attachmentsBlock}
-            </div>
           </>
         )}
 
@@ -1222,18 +1423,82 @@ export default function WriteEventPage() {
           </>
         )}
 
+        {submission?.kind === "success" && (
+          <div
+            style={{
+              padding: "0.7rem 0.9rem",
+              borderRadius: 6,
+              border: "1px solid #6ee7b7",
+              background: "#d1fae5",
+              color: "#065f46",
+              fontSize: "0.9rem",
+            }}
+          >
+            <div><strong>On-chain submission confirmed.</strong></div>
+            <div style={{ marginTop: "0.25rem", fontFamily: "monospace", fontSize: "0.8rem", wordBreak: "break-all" }}>
+              tx: {submission.tx}
+            </div>
+            <div style={{ marginTop: "0.4rem" }}>
+              <a
+                href={explorerTxUrl(submission.tx)}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "#065f46", textDecoration: "underline" }}
+              >
+                View on Solana Explorer ↗
+              </a>
+            </div>
+          </div>
+        )}
+        {submission?.kind === "error" && (
+          <div
+            style={{
+              padding: "0.7rem 0.9rem",
+              borderRadius: 6,
+              border: "1px solid #fca5a5",
+              background: "#fee2e2",
+              color: "#991b1b",
+              fontSize: "0.9rem",
+              wordBreak: "break-word",
+            }}
+          >
+            <div><strong>Submission failed.</strong></div>
+            <div style={{ marginTop: "0.25rem", fontFamily: "monospace", fontSize: "0.8rem" }}>
+              {submission.message}
+            </div>
+          </div>
+        )}
+
+        {!isFormValid() && missingFields().length > 0 && (
+          <div
+            style={{
+              padding: "0.55rem 0.75rem",
+              borderRadius: 6,
+              border: "1px solid #fcd34d",
+              background: "#fef3c7",
+              color: "#92400e",
+              fontSize: "0.85rem",
+            }}
+          >
+            <strong>Cannot submit yet — missing or invalid:</strong>{" "}
+            {missingFields().join(", ")}.
+          </div>
+        )}
+
         <button
           type="submit"
-          disabled={!isFormValid() || submitting}
+          disabled={!isFormValid() || submitting || !wallet}
           style={{
             padding: "0.7rem 1.4rem", fontSize: "1rem",
-            background: !isFormValid() || submitting ? "#9ca3af" : "#111827",
+            background: !isFormValid() || submitting || !wallet ? "#9ca3af" : "#111827",
             color: "white", border: "none", borderRadius: 6,
-            cursor: !isFormValid() || submitting ? "not-allowed" : "pointer",
+            cursor: !isFormValid() || submitting || !wallet ? "not-allowed" : "pointer",
           }}
         >
           {submitting
-            ? "Submitting…"
+            ? "Signing + sending…"
+            : !wallet
+            ? "Connect wallet to submit"
             : action?.kind === "create_vehicle"
             ? "Create vehicle"
             : action?.kind === "register_vehicle"
@@ -1242,15 +1507,14 @@ export default function WriteEventPage() {
         </button>
 
         <div style={{ ...hintStyle, marginTop: "0.5rem" }}>
-          <strong>Mock mode</strong> — submission is logged to the browser
-          console, not sent to chain. Real submission wires up after contract
-          redeploy. Planned changes: <code>PoliceControl</code> + <code>Registration</code>{" "}
-          event types, <code>valid_from</code>/<code>valid_until</code> on{" "}
-          <code>VehicleEvent</code>, <code>driving_blocked_since</code> +{" "}
-          <code>current_license_plate</code> + <code>current_owner_hash</code> +{" "}
-          <code>registered_at_official</code> + <code>registration_country</code> on{" "}
-          <code>Vehicle</code>, the extended <code>mint_vehicle_passport</code> args, and a
-          new <code>register_vehicle</code> Government-only instruction.
+          <strong>Live on Solana devnet.</strong> Submission signs through your
+          connected wallet and lands on-chain via program{" "}
+          <code>HkbccHJ45V7zbgLkwr64EUzRhfjdH1mcoQ5UVMAte341</code>. The chain
+          enforces authority kind, mileage anti-rollback, and per-event
+          permissions; failures surface as readable Anchor errors below.
+          Photos aren&apos;t pushed to Arweave yet — <code>doc_arweave_tx</code>{" "}
+          ships as zeros, and <code>payload_hash</code> is sha-256 of a
+          structured manifest computed in the browser.
         </div>
       </form>
     </section>

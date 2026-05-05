@@ -12,6 +12,8 @@
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.1",
     "@irys/sdk": "^0.2.10",
+    "@irys/web-upload": "^0.0.15",
+    "@irys/web-upload-solana": "^0.1.8",
     "@noble/hashes": "^1.4.0",
     "@solana/wallet-adapter-base": "^0.9.23",
     "@solana/wallet-adapter-react": "^0.15.35",

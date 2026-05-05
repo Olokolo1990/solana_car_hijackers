@@ -7,6 +7,7 @@ import { getReadOnlyProgram } from "@/lib/program";
 import {
   AuthorityKind,
   EventType,
+  type AuthoritySummary,
   type VehicleEvent as VehicleEventView,
   type VehicleSummary,
 } from "@/types/events";
@@ -198,3 +199,35 @@ export async function fetchVehicleEvents(
 }
 
 export { decodeCountry };
+
+/**
+ * Fetch the Authority record registered for the given signer wallet.
+ * Returns null if the wallet has not been registered as an authority,
+ * or if the on-chain account fails to deserialize.
+ */
+export async function fetchAuthority(
+  signer: PublicKey
+): Promise<AuthoritySummary | null> {
+  const program = getReadOnlyProgram();
+  const [pda] = deriveAuthorityPda(signer);
+  let account: Awaited<ReturnType<typeof program.account.authority.fetchNullable>>;
+  try {
+    account = await program.account.authority.fetchNullable(pda);
+  } catch (err) {
+    console.warn(
+      `fetchAuthority: failed to deserialize Authority at ${pda.toBase58()}:`,
+      err
+    );
+    return null;
+  }
+  if (!account) return null;
+  return {
+    signer: account.signer.toBase58(),
+    kind: account.kind as AuthorityKind,
+    countryCode: decodeCountry(account.countryCode as unknown as number[]),
+    name: account.name,
+    active: account.active,
+    eventsWritten: (account.eventsWritten as unknown as BN).toNumber(),
+    registeredAt: (account.registeredAt as unknown as BN).toNumber(),
+  };
+}
