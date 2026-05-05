@@ -38,7 +38,7 @@ pub fn handler(
     country_code: [u8; 2],
     name: String,
 ) -> Result<()> {
-    require!(name.len() <= MAX_NAME_LEN, VehiclePassportError::StringTooLong);
+    require!((name.len() as u64) <= MAX_NAME_LEN, VehiclePassportError::StringTooLong);
 
     let auth = &mut ctx.accounts.authority;
     auth.signer = ctx.accounts.new_authority_signer.key();

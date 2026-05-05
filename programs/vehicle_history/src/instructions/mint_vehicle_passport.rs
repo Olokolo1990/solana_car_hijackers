@@ -56,8 +56,8 @@ pub fn handler(
     color_code: u32,
     equipment_hash: [u8; 32],
 ) -> Result<()> {
-    require!(make.len() <= MAX_MAKE_LEN, VehiclePassportError::StringTooLong);
-    require!(model.len() <= MAX_MODEL_LEN, VehiclePassportError::StringTooLong);
+    require!((make.len() as u64) <= MAX_MAKE_LEN, VehiclePassportError::StringTooLong);
+    require!((model.len() as u64) <= MAX_MODEL_LEN, VehiclePassportError::StringTooLong);
 
     let v = &mut ctx.accounts.vehicle;
     v.vin_hash = vin_hash;
