@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AuthorityKindLabel, AuthorityKind } from "@/app/types/events";
+import { AuthorityKindLabel, AuthorityKind } from "@/types/events";
 
 interface AuthorityRow {
   signer: string;

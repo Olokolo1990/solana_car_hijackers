@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { EventType, EventTypeLabel } from "@/app/types/events";
+import { EventType, EventTypeLabel } from "@/types/events";
 
 export default function WriteEventPage() {
   const { publicKey } = useWallet();

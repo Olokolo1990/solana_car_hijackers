@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { WalletProvider } from "@/app/components/WalletProvider";
+import { WalletProvider } from "@/components/WalletProvider";
 
 export const metadata = {
   title: "Vehicle History",

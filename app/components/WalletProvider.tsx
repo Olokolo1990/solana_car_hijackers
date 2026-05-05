@@ -6,7 +6,7 @@ import { ConnectionProvider, WalletProvider as SolanaWalletProvider }
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { PhantomWalletAdapter, SolflareWalletAdapter }
   from "@solana/wallet-adapter-wallets";
-import { RPC_URL } from "@/app/lib/solana";
+import { RPC_URL } from "@/lib/solana";
 
 import "@solana/wallet-adapter-react-ui/styles.css";
 

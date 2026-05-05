@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AuthorityKind, AuthorityKindLabel } from "@/app/types/events";
+import { AuthorityKind, AuthorityKindLabel } from "@/types/events";
 
 export default function RegisterAuthorityPage() {
   const [signerPubkey, setSignerPubkey] = useState("");
