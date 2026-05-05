@@ -14,7 +14,7 @@ pub mod state;
 
 use instructions::*;
 
-declare_id!("VHistoryProgram1111111111111111111111111111");
+declare_id!("HkbccHJ45V7zbgLkwr64EUzRhfjdH1mcoQ5UVMAte341");
 
 #[program]
 pub mod vehicle_history {

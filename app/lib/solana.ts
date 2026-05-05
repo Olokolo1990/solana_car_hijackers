@@ -5,7 +5,7 @@ import { sha256 } from "@noble/hashes/sha256";
 
 export const PROGRAM_ID = new PublicKey(
   process.env.NEXT_PUBLIC_PROGRAM_ID ??
-    "VHistoryProgram1111111111111111111111111111"
+    "HkbccHJ45V7zbgLkwr64EUzRhfjdH1mcoQ5UVMAte341"
 );
 
 export const RPC_URL =
