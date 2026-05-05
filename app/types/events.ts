@@ -14,6 +14,7 @@ export enum EventType {
   Import = 9,
   Recall = 10,
   Scrapping = 11,
+  PoliceControl = 12,
 }
 
 export const EventTypeLabel: Record<EventType, string> = {
@@ -22,13 +23,14 @@ export const EventTypeLabel: Record<EventType, string> = {
   [EventType.Accident]: "Accident",
   [EventType.Service]: "Service",
   [EventType.PartReplacement]: "Part replacement",
-  [EventType.InsuranceClaim]: "Insurance claim",
+  [EventType.InsuranceClaim]: "Insurance policy",
   [EventType.OwnershipTransfer]: "Ownership transfer",
   [EventType.Theft]: "Theft",
   [EventType.Recovery]: "Recovery",
   [EventType.Import]: "Import",
   [EventType.Recall]: "Manufacturer recall",
   [EventType.Scrapping]: "Scrapping",
+  [EventType.PoliceControl]: "Police control",
 };
 
 export enum AuthorityKind {
