@@ -485,9 +485,10 @@ export default function WriteEventPage() {
       let tx: string;
 
       if (action.kind === "create_vehicle") {
-        // equipment_hash is anchored on-chain as a sha-256 of a structured
-        // manifest of the form fields. Photo upload to decentralized
-        // storage is deferred to a later iteration.
+        // equipment_hash is anchored on-chain as a sha-256 of the structured
+        // manifest. v4: every field is also stored on-chain in plaintext, so
+        // the hash is now redundant (kept for backward compat with v3
+        // fetchers and as a tamper-proof receipt of the original form).
         const equipmentManifest = {
           fuelType,
           transmission,
@@ -503,6 +504,22 @@ export default function WriteEventPage() {
         };
         const equipmentHashArr = await hashManifest(equipmentManifest);
         const mintPlaceholder = Keypair.generate().publicKey;
+        // Map UI dropdown labels to the on-chain u8 codes.
+        const FUEL_CODE: Record<string, number> = {
+          "Petrol": 0, "Diesel": 1, "Electric": 2, "Hybrid": 3,
+          "Plug-in hybrid": 4, "Hydrogen": 5, "LPG": 6, "Other": 7,
+        };
+        const TX_CODE: Record<string, number> = {
+          "Manual": 0, "Automatic": 1, "Semi-automatic": 2, "CVT": 3,
+          "DCT (dual-clutch)": 4,
+        };
+        const BODY_CODE: Record<string, number> = {
+          "Sedan": 0, "Hatchback": 1, "SUV": 2, "Coupe": 3,
+          "Wagon/Estate": 4, "Pickup": 5, "Van": 6, "Convertible": 7,
+          "Minivan": 8, "Other": 9,
+        };
+        const co = countryOfOrigin.toUpperCase();
+        const originBytes = [co.charCodeAt(0) || 0, co.charCodeAt(1) || 0] as number[];
         tx = await program.methods
           .mintVehiclePassport(
             vinHashArr as unknown as number[] & { length: 32 },
@@ -510,7 +527,17 @@ export default function WriteEventPage() {
             model,
             Number(year),
             parseInt(colorHex.slice(1), 16),
-            equipmentHashArr as unknown as number[] & { length: 32 }
+            equipmentHashArr as unknown as number[] & { length: 32 },
+            FUEL_CODE[fuelType] ?? 7,
+            TX_CODE[transmission] ?? 0,
+            BODY_CODE[bodyType] ?? 9,
+            engineCc ? Number(engineCc) : 0,
+            Number(powerHp) || 0,
+            Number(weightKg) || 0,
+            Number(seats) || 0,
+            colorName.slice(0, 32),
+            originBytes as unknown as number[] & { length: 2 },
+            equipment.trim().slice(0, 512)
           )
           .accountsPartial({
             manufacturerSigner: wallet.publicKey,

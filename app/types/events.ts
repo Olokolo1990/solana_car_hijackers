@@ -73,7 +73,51 @@ export interface VehicleSummary {
   registrationCountry: string;
   /** 0 if driving is permitted; otherwise unix timestamp when Police set the block. */
   drivingBlockedSince: number;
+  // === Manufacturer specs (added in v4 redeploy 2026-05-06) ===
+  fuelType: number;
+  transmission: number;
+  bodyType: number;
+  engineCc: number;
+  powerHp: number;
+  weightKg: number;
+  seats: number;
+  colorName: string;
+  /** ISO-2 string or "" if unset. */
+  countryOfOrigin: string;
+  equipment: string;
 }
+
+export const FuelTypeLabel: Record<number, string> = {
+  0: "Petrol",
+  1: "Diesel",
+  2: "Electric",
+  3: "Hybrid",
+  4: "Plug-in hybrid",
+  5: "Hydrogen",
+  6: "LPG",
+  7: "Other",
+};
+
+export const TransmissionLabel: Record<number, string> = {
+  0: "Manual",
+  1: "Automatic",
+  2: "Semi-automatic",
+  3: "CVT",
+  4: "DCT (dual-clutch)",
+};
+
+export const BodyTypeLabel: Record<number, string> = {
+  0: "Sedan",
+  1: "Hatchback",
+  2: "SUV",
+  3: "Coupe",
+  4: "Wagon/Estate",
+  5: "Pickup",
+  6: "Van",
+  7: "Convertible",
+  8: "Minivan",
+  9: "Other",
+};
 
 export interface AuthoritySummary {
   signer: string;

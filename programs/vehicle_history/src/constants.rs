@@ -29,3 +29,12 @@ pub const MAX_MODEL_LEN: u64 = 32;
 /// redeploy don't have this field and won't be readable with the new IDL.
 #[constant]
 pub const MAX_EVENT_DESCRIPTION_LEN: u64 = 256;
+
+/// Friendly color name written by the manufacturer at mint time.
+/// e.g. "Pearl White", "Tornado Red".
+#[constant]
+pub const MAX_COLOR_NAME_LEN: u64 = 32;
+
+/// Free-text equipment list at factory mint (LED headlights, sunroof, etc.).
+#[constant]
+pub const MAX_EQUIPMENT_LEN: u64 = 512;

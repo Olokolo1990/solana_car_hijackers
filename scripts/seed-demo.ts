@@ -20,8 +20,11 @@ import { VehicleHistory } from "../target/types/vehicle_history";
 // deserialized with the new IDL, so we burn a fresh VIN per major version).
 //   v1 orphan: WVWZZZ1KZ8M094375
 //   v2 orphan: WVWZZZ1KZ8M094376
-//   v3 fresh:  WVWZZZ1KZ8M094377  ← description field added on VehicleEvent
-const DEMO_VIN = "WVWZZZ1KZ8M094377";
+//   v3 orphan: WVWZZZ1KZ8M094377  (description field added on VehicleEvent)
+//   v4 fresh:  WVWZZZ1KZ8M094378  ← manufacturer specs on Vehicle (fuel,
+//              transmission, body, engine_cc, power_hp, weight_kg, seats,
+//              color_name, country_of_origin, equipment)
+const DEMO_VIN = "WVWZZZ1KZ8M094378";
 const AUTHORITY_KIND_MANUFACTURER = 0;
 const EVENT_TYPE_RECALL = 10;
 
@@ -116,8 +119,19 @@ async function main() {
         "VW",
         "GOLF",
         2018,
-        0xffffff,
-        equipmentHashArr as unknown as number[] & { length: 32 }
+        0xfafafa,
+        equipmentHashArr as unknown as number[] & { length: 32 },
+        // v4 manufacturer specs:
+        1, // fuel_type = Diesel
+        1, // transmission = Automatic
+        1, // body_type = Hatchback
+        1968, // engine_cc
+        150, // power_hp
+        1450, // weight_kg
+        5, // seats
+        "Pearl White", // color_name
+        [..."DE"].map((c) => c.charCodeAt(0)) as [number, number],
+        "LED headlights, panoramic sunroof, leather seats, navigation, parking sensors front+rear, adaptive cruise control"
       )
       .accountsPartial({
         manufacturerSigner: admin,

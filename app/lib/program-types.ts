@@ -215,6 +215,51 @@ export type VehicleHistory = {
               32
             ]
           }
+        },
+        {
+          "name": "fuelType",
+          "type": "u8"
+        },
+        {
+          "name": "transmission",
+          "type": "u8"
+        },
+        {
+          "name": "bodyType",
+          "type": "u8"
+        },
+        {
+          "name": "engineCc",
+          "type": "u16"
+        },
+        {
+          "name": "powerHp",
+          "type": "u16"
+        },
+        {
+          "name": "weightKg",
+          "type": "u32"
+        },
+        {
+          "name": "seats",
+          "type": "u8"
+        },
+        {
+          "name": "colorName",
+          "type": "string"
+        },
+        {
+          "name": "countryOfOrigin",
+          "type": {
+            "array": [
+              "u8",
+              2
+            ]
+          }
+        },
+        {
+          "name": "equipment",
+          "type": "string"
         }
       ]
     },
@@ -1080,6 +1125,15 @@ export type VehicleHistory = {
     {
       "name": "vehicle",
       "docs": [
+        "FuelType values stored as u8 on Vehicle.fuel_type. Frontend keeps the",
+        "label map. Codes:",
+        "0 Petrol, 1 Diesel, 2 Electric, 3 Hybrid, 4 PluginHybrid,",
+        "5 Hydrogen, 6 LPG, 7 Other",
+        "",
+        "TransmissionType: 0 Manual, 1 Automatic, 2 SemiAutomatic, 3 CVT, 4 DCT",
+        "",
+        "BodyType: 0 Sedan, 1 Hatchback, 2 SUV, 3 Coupe, 4 Wagon, 5 Pickup,",
+        "6 Van, 7 Convertible, 8 Minivan, 9 Other",
         "One per VIN. Acts as the on-chain side of the NFT passport."
       ],
       "type": {
@@ -1138,6 +1192,75 @@ export type VehicleHistory = {
           {
             "name": "createdAt",
             "type": "i64"
+          },
+          {
+            "name": "fuelType",
+            "docs": [
+              "0=Petrol 1=Diesel 2=Electric 3=Hybrid 4=PluginHybrid 5=Hydrogen 6=LPG 7=Other"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "transmission",
+            "docs": [
+              "0=Manual 1=Automatic 2=SemiAutomatic 3=CVT 4=DCT"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "bodyType",
+            "docs": [
+              "0=Sedan 1=Hatchback 2=SUV 3=Coupe 4=Wagon 5=Pickup 6=Van 7=Convertible 8=Minivan 9=Other"
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "engineCc",
+            "docs": [
+              "Engine displacement in cubic centimeters. 0 for EVs."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "powerHp",
+            "docs": [
+              "Engine power output in horsepower."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "weightKg",
+            "docs": [
+              "Kerb weight in kilograms."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "seats",
+            "docs": [
+              "Number of seats including driver."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "colorName",
+            "type": "string"
+          },
+          {
+            "name": "countryOfOrigin",
+            "docs": [
+              "ISO-3166 alpha-2 country of origin (factory). [0,0] = unset."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                2
+              ]
+            }
+          },
+          {
+            "name": "equipment",
+            "type": "string"
           },
           {
             "name": "registeredAtOfficial",
@@ -1286,6 +1409,23 @@ export type VehicleHistory = {
       "name": "globalConfigSeed",
       "type": "bytes",
       "value": "[103, 108, 111, 98, 97, 108, 95, 99, 111, 110, 102, 105, 103]"
+    },
+    {
+      "name": "maxColorNameLen",
+      "docs": [
+        "Friendly color name written by the manufacturer at mint time.",
+        "e.g. \"Pearl White\", \"Tornado Red\"."
+      ],
+      "type": "u64",
+      "value": "32"
+    },
+    {
+      "name": "maxEquipmentLen",
+      "docs": [
+        "Free-text equipment list at factory mint (LED headlights, sunroof, etc.)."
+      ],
+      "type": "u64",
+      "value": "512"
     },
     {
       "name": "maxEventDescriptionLen",

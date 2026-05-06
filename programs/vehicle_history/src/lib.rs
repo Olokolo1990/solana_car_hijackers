@@ -44,6 +44,7 @@ pub mod vehicle_history {
 
     /// Manufacturer-only: mint the passport NFT for a brand new vehicle at
     /// the factory. Records VIN hash + factory metadata on-chain.
+    #[allow(clippy::too_many_arguments)]
     pub fn mint_vehicle_passport(
         ctx: Context<MintVehiclePassport>,
         vin_hash: [u8; 32],
@@ -52,6 +53,16 @@ pub mod vehicle_history {
         year: u16,
         color_code: u32,
         equipment_hash: [u8; 32],
+        fuel_type: u8,
+        transmission: u8,
+        body_type: u8,
+        engine_cc: u16,
+        power_hp: u16,
+        weight_kg: u32,
+        seats: u8,
+        color_name: String,
+        country_of_origin: [u8; 2],
+        equipment: String,
     ) -> Result<()> {
         instructions::mint_vehicle_passport::handler(
             ctx,
@@ -61,6 +72,16 @@ pub mod vehicle_history {
             year,
             color_code,
             equipment_hash,
+            fuel_type,
+            transmission,
+            body_type,
+            engine_cc,
+            power_hp,
+            weight_kg,
+            seats,
+            color_name,
+            country_of_origin,
+            equipment,
         )
     }
 

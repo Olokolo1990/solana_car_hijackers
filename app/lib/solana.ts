@@ -85,6 +85,11 @@ function vehicleAccountToSummary(account: AnchorVehicleAccount): VehicleSummary 
   const ownerHashBytes = account.currentOwnerHash as unknown as number[];
   const countryBytes = account.registrationCountry as unknown as number[];
   const isCountrySet = countryBytes[0] !== 0 || countryBytes[1] !== 0;
+  // v4 fields — fall through to defaults if account is from v3 or earlier.
+  const a = account as unknown as Record<string, unknown>;
+  const originBytes = a.countryOfOrigin as number[] | undefined;
+  const isOriginSet =
+    !!originBytes && (originBytes[0] !== 0 || originBytes[1] !== 0);
   return {
     vinHash: bytesToHex(account.vinHash as unknown as number[]),
     make: account.make,
@@ -99,6 +104,18 @@ function vehicleAccountToSummary(account: AnchorVehicleAccount): VehicleSummary 
     registeredAtOfficial: (account.registeredAtOfficial as unknown as BN).toNumber(),
     registrationCountry: isCountrySet ? decodeCountry(countryBytes) : "",
     drivingBlockedSince: (account.drivingBlockedSince as unknown as BN).toNumber(),
+    fuelType: (a.fuelType as number | undefined) ?? 0,
+    transmission: (a.transmission as number | undefined) ?? 0,
+    bodyType: (a.bodyType as number | undefined) ?? 0,
+    engineCc: (a.engineCc as number | undefined) ?? 0,
+    powerHp: (a.powerHp as number | undefined) ?? 0,
+    weightKg: (a.weightKg as number | undefined) ?? 0,
+    seats: (a.seats as number | undefined) ?? 0,
+    colorName: (a.colorName as string | undefined) ?? "",
+    countryOfOrigin: isOriginSet
+      ? String.fromCharCode(originBytes![0], originBytes![1])
+      : "",
+    equipment: (a.equipment as string | undefined) ?? "",
   };
 }
 

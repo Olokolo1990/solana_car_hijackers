@@ -6,8 +6,11 @@
 
 import {
   AuthorityKindLabel,
+  BodyTypeLabel,
   EventType,
   EventTypeLabel,
+  FuelTypeLabel,
+  TransmissionLabel,
   type VehicleEvent,
   type VehicleSummary,
 } from "@/types/events";
@@ -343,7 +346,7 @@ export function VehicleView({ summary, events, heading }: Props) {
           border: "1px solid #e5e7eb",
           borderRadius: 8,
           padding: "1rem 1.25rem",
-          marginBottom: "1.5rem",
+          marginBottom: "1rem",
           display: "grid",
           gridTemplateColumns: "repeat(2, 1fr)",
           gap: "0.4rem 1.5rem",
@@ -359,6 +362,91 @@ export function VehicleView({ summary, events, heading }: Props) {
         <Field label="Total events" value={String(summary.eventCount)} />
         <Field label="Created on-chain" value={fmtDate(summary.createdAt)} />
       </div>
+
+      {/* Manufacturer specs (v4 — only shown if the vehicle was minted with
+          the v4 schema; older vehicles return zero/empty defaults via the
+          mapper, so we hide the section when nothing meaningful is set). */}
+      {(summary.powerHp > 0 ||
+        summary.weightKg > 0 ||
+        summary.colorName ||
+        summary.equipment) && (
+        <div
+          style={{
+            border: "1px solid #e5e7eb",
+            borderRadius: 8,
+            padding: "1rem 1.25rem",
+            marginBottom: "1.5rem",
+          }}
+        >
+          <h3 style={{ margin: 0, marginBottom: "0.75rem", fontSize: "1rem" }}>
+            Specifications
+          </h3>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: "0.4rem 1.5rem",
+            }}
+          >
+            <Field label="Fuel type" value={FuelTypeLabel[summary.fuelType] ?? "—"} />
+            <Field
+              label="Transmission"
+              value={TransmissionLabel[summary.transmission] ?? "—"}
+            />
+            <Field label="Body type" value={BodyTypeLabel[summary.bodyType] ?? "—"} />
+            <Field
+              label="Engine"
+              value={summary.engineCc > 0 ? `${summary.engineCc.toLocaleString()} cc` : "—"}
+            />
+            <Field
+              label="Power"
+              value={summary.powerHp > 0 ? `${summary.powerHp} hp` : "—"}
+            />
+            <Field
+              label="Kerb weight"
+              value={
+                summary.weightKg > 0
+                  ? `${summary.weightKg.toLocaleString()} kg`
+                  : "—"
+              }
+            />
+            <Field label="Seats" value={summary.seats > 0 ? String(summary.seats) : "—"} />
+            <Field
+              label="Color"
+              value={summary.colorName || `#${summary.colorCode.toString(16).padStart(6, "0")}`}
+            />
+            <Field
+              label="Origin"
+              value={summary.countryOfOrigin || "—"}
+            />
+          </div>
+          {summary.equipment && summary.equipment.trim() && (
+            <div style={{ marginTop: "0.85rem" }}>
+              <div
+                style={{
+                  color: "#6b7280",
+                  fontSize: "0.8rem",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                }}
+              >
+                Equipment
+              </div>
+              <div
+                style={{
+                  marginTop: "0.25rem",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                  fontSize: "0.92rem",
+                  color: "#374151",
+                }}
+              >
+                {summary.equipment}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <h2>Event timeline</h2>
       {events.length === 0 ? (

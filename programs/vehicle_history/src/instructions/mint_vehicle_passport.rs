@@ -1,6 +1,9 @@
 use anchor_lang::prelude::*;
 
-use crate::constants::{AUTHORITY_SEED, GLOBAL_CONFIG_SEED, MAX_MAKE_LEN, MAX_MODEL_LEN, VEHICLE_SEED};
+use crate::constants::{
+    AUTHORITY_SEED, GLOBAL_CONFIG_SEED, MAX_COLOR_NAME_LEN, MAX_EQUIPMENT_LEN, MAX_MAKE_LEN,
+    MAX_MODEL_LEN, VEHICLE_SEED,
+};
 use crate::errors::VehiclePassportError;
 use crate::state::{Authority, AuthorityKind, GlobalConfig, Vehicle};
 
@@ -47,6 +50,7 @@ pub struct MintVehiclePassport<'info> {
     pub rent: Sysvar<'info, Rent>,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn handler(
     ctx: Context<MintVehiclePassport>,
     vin_hash: [u8; 32],
@@ -55,9 +59,27 @@ pub fn handler(
     year: u16,
     color_code: u32,
     equipment_hash: [u8; 32],
+    fuel_type: u8,
+    transmission: u8,
+    body_type: u8,
+    engine_cc: u16,
+    power_hp: u16,
+    weight_kg: u32,
+    seats: u8,
+    color_name: String,
+    country_of_origin: [u8; 2],
+    equipment: String,
 ) -> Result<()> {
     require!((make.len() as u64) <= MAX_MAKE_LEN, VehiclePassportError::StringTooLong);
     require!((model.len() as u64) <= MAX_MODEL_LEN, VehiclePassportError::StringTooLong);
+    require!(
+        (color_name.len() as u64) <= MAX_COLOR_NAME_LEN,
+        VehiclePassportError::StringTooLong
+    );
+    require!(
+        (equipment.len() as u64) <= MAX_EQUIPMENT_LEN,
+        VehiclePassportError::StringTooLong
+    );
 
     let v = &mut ctx.accounts.vehicle;
     v.vin_hash = vin_hash;
@@ -71,6 +93,16 @@ pub fn handler(
     v.last_mileage = 0;
     v.event_count = 0;
     v.created_at = Clock::get()?.unix_timestamp;
+    v.fuel_type = fuel_type;
+    v.transmission = transmission;
+    v.body_type = body_type;
+    v.engine_cc = engine_cc;
+    v.power_hp = power_hp;
+    v.weight_kg = weight_kg;
+    v.seats = seats;
+    v.color_name = color_name;
+    v.country_of_origin = country_of_origin;
+    v.equipment = equipment;
     v.bump = ctx.bumps.vehicle;
 
     let cfg = &mut ctx.accounts.global_config;
