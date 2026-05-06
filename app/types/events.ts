@@ -85,6 +85,12 @@ export interface AuthoritySummary {
   registeredAt: number;
 }
 
+export interface GlobalConfigSummary {
+  admin: string;
+  vehicleCount: number;
+  authorityCount: number;
+}
+
 export interface VehicleEvent {
   vehicle: string;
   authority: string;

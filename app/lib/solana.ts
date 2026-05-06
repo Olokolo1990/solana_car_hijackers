@@ -8,6 +8,7 @@ import {
   AuthorityKind,
   EventType,
   type AuthoritySummary,
+  type GlobalConfigSummary,
   type VehicleEvent as VehicleEventView,
   type VehicleSummary,
 } from "@/types/events";
@@ -205,6 +206,31 @@ export { decodeCountry };
  * Returns null if the wallet has not been registered as an authority,
  * or if the on-chain account fails to deserialize.
  */
+/**
+ * Fetch the singleton GlobalConfig record. Returns null if not initialized
+ * or the on-chain account fails to deserialize (stale layout).
+ */
+export async function fetchGlobalConfig(): Promise<GlobalConfigSummary | null> {
+  const program = getReadOnlyProgram();
+  const [pda] = deriveGlobalConfigPda();
+  let account: Awaited<ReturnType<typeof program.account.globalConfig.fetchNullable>>;
+  try {
+    account = await program.account.globalConfig.fetchNullable(pda);
+  } catch (err) {
+    console.warn(
+      `fetchGlobalConfig: failed to deserialize GlobalConfig at ${pda.toBase58()}:`,
+      err
+    );
+    return null;
+  }
+  if (!account) return null;
+  return {
+    admin: account.admin.toBase58(),
+    vehicleCount: (account.vehicleCount as unknown as BN).toNumber(),
+    authorityCount: (account.authorityCount as unknown as BN).toNumber(),
+  };
+}
+
 export async function fetchAuthority(
   signer: PublicKey
 ): Promise<AuthoritySummary | null> {
