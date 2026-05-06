@@ -18,6 +18,7 @@ import {
   type Transaction,
   type VersionedTransaction,
 } from "@solana/web3.js";
+import type { AnchorWallet } from "@solana/wallet-adapter-react";
 import idlJson from "@/lib/idl.json";
 import type { VehicleHistory } from "@/lib/program-types";
 import { connection } from "@/lib/solana";
@@ -51,8 +52,12 @@ export function getReadOnlyProgram(): Program<VehicleHistory> {
   return cachedReadOnly;
 }
 
-export function getProgram(wallet: Wallet): Program<VehicleHistory> {
-  const provider = new AnchorProvider(connection, wallet, {
+// AnchorWallet (browser, from useAnchorWallet) lacks `payer`, but AnchorProvider
+// only calls publicKey + signTransaction + signAllTransactions at runtime, so
+// the cast to NodeWallet-shaped Wallet is safe. @coral-xyz/anchor 0.31's strict
+// type narrowed Wallet to NodeWallet, breaking previously-valid call sites.
+export function getProgram(wallet: AnchorWallet | Wallet): Program<VehicleHistory> {
+  const provider = new AnchorProvider(connection, wallet as Wallet, {
     commitment: "confirmed",
   });
   return new Program<VehicleHistory>(

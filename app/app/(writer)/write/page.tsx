@@ -431,18 +431,20 @@ export default function WriteEventPage() {
   // --- Helpers ---
   // Hash any structured payload (description + dates + photo metadata) →
   // sha256 hex bytes (32). Stand-in for the real Arweave manifest hash.
+  // The `as BufferSource` cast bridges TS 5.7's stricter ArrayBuffer typing —
+  // Uint8Array<ArrayBufferLike> isn't structurally ArrayBuffer anymore.
   async function hashManifest(obj: unknown): Promise<number[]> {
     const json = JSON.stringify(obj);
     const buf = await crypto.subtle.digest(
       "SHA-256",
-      new TextEncoder().encode(json)
+      new TextEncoder().encode(json) as BufferSource
     );
     return Array.from(new Uint8Array(buf));
   }
   async function hashOwner(input: string): Promise<number[]> {
     const buf = await crypto.subtle.digest(
       "SHA-256",
-      new TextEncoder().encode(input.trim())
+      new TextEncoder().encode(input.trim()) as BufferSource
     );
     return Array.from(new Uint8Array(buf));
   }
