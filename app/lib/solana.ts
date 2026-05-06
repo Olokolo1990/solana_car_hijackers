@@ -265,6 +265,7 @@ export async function fetchVehicleEventsByPda(
         sequence: (ev.sequence as unknown as BN).toNumber(),
         validFrom: (ev.validFrom as unknown as BN).toNumber(),
         validUntil: (ev.validUntil as unknown as BN).toNumber(),
+        description: (ev as unknown as { description?: string }).description ?? "",
       };
     })
     .filter((x): x is VehicleEventView => x !== null);

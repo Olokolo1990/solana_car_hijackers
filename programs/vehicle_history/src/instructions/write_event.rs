@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use crate::constants::{AUTHORITY_SEED, EVENT_SEED, VEHICLE_SEED};
+use crate::constants::{AUTHORITY_SEED, EVENT_SEED, MAX_EVENT_DESCRIPTION_LEN, VEHICLE_SEED};
 use crate::errors::VehiclePassportError;
 use crate::state::{Authority, EventType, Vehicle, VehicleEvent};
 
@@ -54,7 +54,12 @@ pub fn handler(
     valid_until: i64,
     block_driving: bool,
     clear_driving_block: bool,
+    description: String,
 ) -> Result<()> {
+    require!(
+        description.len() as u64 <= MAX_EVENT_DESCRIPTION_LEN,
+        VehiclePassportError::StringTooLong
+    );
     let parsed_type = parse_event_type(event_type)?;
     enforce_authority_can_write(ctx.accounts.authority.kind, parsed_type)?;
 
@@ -97,6 +102,7 @@ pub fn handler(
     event.sequence = vehicle.event_count;
     event.valid_from = valid_from;
     event.valid_until = valid_until;
+    event.description = description;
     event.bump = ctx.bumps.event;
 
     if parsed_type.requires_mileage() {

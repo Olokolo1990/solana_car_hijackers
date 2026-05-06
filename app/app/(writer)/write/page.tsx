@@ -557,7 +557,8 @@ export default function WriteEventPage() {
             countryBytes as unknown as number[] & { length: 2 },
             new BN(Math.floor(new Date(registrationDate).getTime() / 1000)),
             docArweaveTx as unknown as number[] & { length: 32 },
-            payloadHashArr as unknown as number[] & { length: 32 }
+            payloadHashArr as unknown as number[] & { length: 32 },
+            description.trim().slice(0, 256)
           )
           .accountsPartial({
             govSigner: wallet.publicKey,
@@ -600,7 +601,8 @@ export default function WriteEventPage() {
                 : 0
             ),
             action.allowsBlockDriving ? blockDriving : false,
-            action.allowsClearBlock ? clearBlock : false
+            action.allowsClearBlock ? clearBlock : false,
+            description.trim().slice(0, 256)
           )
           .accountsPartial({
             authoritySigner: wallet.publicKey,

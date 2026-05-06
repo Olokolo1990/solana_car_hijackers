@@ -16,9 +16,12 @@ import { Keypair, PublicKey } from "@solana/web3.js";
 import { sha256 } from "@noble/hashes/sha256";
 import { VehicleHistory } from "../target/types/vehicle_history";
 
-// New VIN after the v2 redeploy (the old WVW...4375 account is orphaned with
-// stale layout and cannot be reused at the same Vehicle PDA).
-const DEMO_VIN = "WVWZZZ1KZ8M094376";
+// New VIN after each redeploy (events from earlier schema versions can't be
+// deserialized with the new IDL, so we burn a fresh VIN per major version).
+//   v1 orphan: WVWZZZ1KZ8M094375
+//   v2 orphan: WVWZZZ1KZ8M094376
+//   v3 fresh:  WVWZZZ1KZ8M094377  ← description field added on VehicleEvent
+const DEMO_VIN = "WVWZZZ1KZ8M094377";
 const AUTHORITY_KIND_MANUFACTURER = 0;
 const EVENT_TYPE_RECALL = 10;
 
@@ -148,7 +151,8 @@ async function main() {
         new anchor.BN(0), // valid_from — N/A for Recall
         new anchor.BN(0), // valid_until — N/A for Recall
         false, // block_driving — Manufacturer can't anyway
-        false // clear_driving_block — Manufacturer can't anyway
+        false, // clear_driving_block — Manufacturer can't anyway
+        "Demo recall: airbag inflator replaced under campaign 23V-001."
       )
       .accountsPartial({
         authoritySigner: admin,

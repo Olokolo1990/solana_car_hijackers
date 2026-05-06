@@ -106,4 +106,6 @@ export interface VehicleEvent {
   validFrom: number;
   /** 0 if not applicable (e.g. insurance expiry, next inspection due). */
   validUntil: number;
+  /** Free-text comment from the writing authority. Empty string if none. Added in v3 redeploy 2026-05-06. */
+  description: string;
 }

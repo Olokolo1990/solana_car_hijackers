@@ -364,7 +364,10 @@ export function VehicleView({ summary, events, heading }: Props) {
       {events.length === 0 ? (
         <p>No events written yet.</p>
       ) : (
-        <ol style={{ paddingLeft: "1.25rem" }}>
+        // `reversed` flips the auto-counter so newest-on-top still shows the
+        // highest number; oldest at the bottom is "1." — the chronological
+        // sequence the on-chain `event.sequence` field uses, +1.
+        <ol reversed start={events.length} style={{ paddingLeft: "1.5rem" }}>
           {[...events].reverse().map((ev) => (
             <li key={ev.sequence} style={{ marginBottom: "0.75rem" }}>
               <div>
@@ -382,6 +385,23 @@ export function VehicleView({ summary, events, heading }: Props) {
                   {ev.validFrom > 0 && <>valid from {fmtDate(ev.validFrom)}</>}
                   {ev.validFrom > 0 && ev.validUntil > 0 && " — "}
                   {ev.validUntil > 0 && <>until {fmtDate(ev.validUntil)}</>}
+                </div>
+              )}
+              {ev.description && ev.description.trim() && (
+                <div
+                  style={{
+                    marginTop: "0.4rem",
+                    padding: "0.4rem 0.6rem",
+                    background: "#f9fafb",
+                    borderLeft: "3px solid #d1d5db",
+                    color: "#374151",
+                    fontSize: "0.88rem",
+                    fontStyle: "italic",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  &ldquo;{ev.description}&rdquo;
                 </div>
               )}
             </li>

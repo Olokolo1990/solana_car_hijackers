@@ -501,6 +501,10 @@ export type VehicleHistory = {
               32
             ]
           }
+        },
+        {
+          "name": "description",
+          "type": "string"
         }
       ]
     },
@@ -873,6 +877,10 @@ export type VehicleHistory = {
         {
           "name": "clearDrivingBlock",
           "type": "bool"
+        },
+        {
+          "name": "description",
+          "type": "string"
         }
       ]
     }
@@ -1248,6 +1256,14 @@ export type VehicleHistory = {
             "type": "i64"
           },
           {
+            "name": "description",
+            "docs": [
+              "Free-text comment from the writing authority. Truncated to MAX_EVENT_DESCRIPTION_LEN",
+              "(260 bytes on-chain incl. length prefix). Empty string allowed."
+            ],
+            "type": "string"
+          },
+          {
             "name": "bump",
             "type": "u8"
           }
@@ -1270,6 +1286,16 @@ export type VehicleHistory = {
       "name": "globalConfigSeed",
       "type": "bytes",
       "value": "[103, 108, 111, 98, 97, 108, 95, 99, 111, 110, 102, 105, 103]"
+    },
+    {
+      "name": "maxEventDescriptionLen",
+      "docs": [
+        "Free-text comment per event (e.g. \"first-time registration after import\").",
+        "Generous enough for one or two sentences. Old events from before the v3",
+        "redeploy don't have this field and won't be readable with the new IDL."
+      ],
+      "type": "u64",
+      "value": "256"
     },
     {
       "name": "maxMakeLen",

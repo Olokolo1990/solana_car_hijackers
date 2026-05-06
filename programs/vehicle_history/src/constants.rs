@@ -23,3 +23,9 @@ pub const MAX_MAKE_LEN: u64 = 32;
 
 #[constant]
 pub const MAX_MODEL_LEN: u64 = 32;
+
+/// Free-text comment per event (e.g. "first-time registration after import").
+/// Generous enough for one or two sentences. Old events from before the v3
+/// redeploy don't have this field and won't be readable with the new IDL.
+#[constant]
+pub const MAX_EVENT_DESCRIPTION_LEN: u64 = 256;

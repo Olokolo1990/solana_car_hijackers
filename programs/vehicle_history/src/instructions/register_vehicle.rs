@@ -1,6 +1,8 @@
 use anchor_lang::prelude::*;
 
-use crate::constants::{AUTHORITY_SEED, EVENT_SEED, GLOBAL_CONFIG_SEED, VEHICLE_SEED};
+use crate::constants::{
+    AUTHORITY_SEED, EVENT_SEED, GLOBAL_CONFIG_SEED, MAX_EVENT_DESCRIPTION_LEN, VEHICLE_SEED,
+};
 use crate::errors::VehiclePassportError;
 use crate::state::{
     Authority, AuthorityKind, EventType, GlobalConfig, Vehicle, VehicleEvent,
@@ -68,8 +70,13 @@ pub fn handler(
     timestamp: i64,
     doc_arweave_tx: [u8; 32],
     payload_hash: [u8; 32],
+    description: String,
 ) -> Result<()> {
     require!(license_plate.len() <= 16, VehiclePassportError::StringTooLong);
+    require!(
+        description.len() as u64 <= MAX_EVENT_DESCRIPTION_LEN,
+        VehiclePassportError::StringTooLong
+    );
 
     // Update the Vehicle's registration cache.
     let vehicle = &mut ctx.accounts.vehicle;
@@ -90,6 +97,7 @@ pub fn handler(
     event.sequence = vehicle.event_count;
     event.valid_from = 0;
     event.valid_until = 0;
+    event.description = description;
     event.bump = ctx.bumps.event;
 
     vehicle.event_count = vehicle.event_count.saturating_add(1);

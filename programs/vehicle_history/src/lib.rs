@@ -84,6 +84,7 @@ pub mod vehicle_history {
         valid_until: i64,
         block_driving: bool,
         clear_driving_block: bool,
+        description: String,
     ) -> Result<()> {
         instructions::write_event::handler(
             ctx,
@@ -96,6 +97,7 @@ pub mod vehicle_history {
             valid_until,
             block_driving,
             clear_driving_block,
+            description,
         )
     }
 
@@ -111,6 +113,7 @@ pub mod vehicle_history {
         timestamp: i64,
         doc_arweave_tx: [u8; 32],
         payload_hash: [u8; 32],
+        description: String,
     ) -> Result<()> {
         instructions::register_vehicle::handler(
             ctx,
@@ -120,6 +123,7 @@ pub mod vehicle_history {
             timestamp,
             doc_arweave_tx,
             payload_hash,
+            description,
         )
     }
 

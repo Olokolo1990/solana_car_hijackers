@@ -1,5 +1,7 @@
 use anchor_lang::prelude::*;
 
+use crate::constants::MAX_EVENT_DESCRIPTION_LEN;
+
 /// One per appended event. v1 stores events as separate accounts; v2 will
 /// migrate to Metaplex Bubblegum compressed leaves to reduce rent costs.
 #[account]
@@ -17,6 +19,10 @@ pub struct VehicleEvent {
     pub valid_from: i64,
     /// Validity window end (e.g. insurance expiry, next inspection due). 0 = N/A.
     pub valid_until: i64,
+    /// Free-text comment from the writing authority. Truncated to MAX_EVENT_DESCRIPTION_LEN
+    /// (260 bytes on-chain incl. length prefix). Empty string allowed.
+    #[max_len(MAX_EVENT_DESCRIPTION_LEN)]
+    pub description: String,
     pub bump: u8,
 }
 
