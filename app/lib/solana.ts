@@ -231,6 +231,27 @@ export async function fetchGlobalConfig(): Promise<GlobalConfigSummary | null> {
   };
 }
 
+/**
+ * Fetch every Authority account ever registered (active + revoked), sorted by
+ * registration time ascending. Uses Anchor's `account.authority.all()` which
+ * wraps getProgramAccounts with the Authority discriminator filter.
+ */
+export async function fetchAllAuthorities(): Promise<AuthoritySummary[]> {
+  const program = getReadOnlyProgram();
+  const all = await program.account.authority.all();
+  return all
+    .map(({ account }): AuthoritySummary => ({
+      signer: account.signer.toBase58(),
+      kind: account.kind as AuthorityKind,
+      countryCode: decodeCountry(account.countryCode as unknown as number[]),
+      name: account.name,
+      active: account.active,
+      eventsWritten: (account.eventsWritten as unknown as BN).toNumber(),
+      registeredAt: (account.registeredAt as unknown as BN).toNumber(),
+    }))
+    .sort((a, b) => a.registeredAt - b.registeredAt);
+}
+
 export async function fetchAuthority(
   signer: PublicKey
 ): Promise<AuthoritySummary | null> {
