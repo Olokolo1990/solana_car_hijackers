@@ -170,31 +170,51 @@ export interface VehicleHit {
  * (case-insensitive, trimmed). Optionally filter by ISO-2 `country`.
  * Returns an array because multiple jurisdictions can re-use the same plate.
  *
- * Implementation note: scans every Vehicle account via getProgramAccounts
- * (Anchor's `.all()`). Fine for hundreds of vehicles on devnet; for a real
- * deployment a memcmp filter would be better but the offset depends on the
- * variable-length make/model strings preceding `current_license_plate`.
+ * Implementation note: bypasses Anchor's `program.account.vehicle.all()`
+ * because that helper decodes every account in one Promise.all — a single
+ * stale-layout vehicle (from a pre-v4 redeploy) makes the whole batch throw.
+ * Instead we fetch raw accounts via getProgramAccounts with the Vehicle
+ * discriminator memcmp, then decode each one with its own try/catch so
+ * stale accounts get skipped silently.
  */
 export async function findVehiclesByPlate(
   plate: string,
   country?: string
 ): Promise<VehicleHit[]> {
   const program = getReadOnlyProgram();
-  const all = await program.account.vehicle.all();
+  const accountsCoder = program.coder.accounts;
+  // memcmp() returns { dataSize, offset, bytes } describing the account
+  // discriminator filter for this account type. Use only its memcmp half —
+  // dataSize would falsely reject any future schema-extended accounts.
+  const m = accountsCoder.memcmp("vehicle");
+  const filters =
+    m.offset !== undefined && m.bytes !== undefined
+      ? [{ memcmp: { offset: m.offset, bytes: m.bytes } }]
+      : [];
+
+  const raws = await connection.getProgramAccounts(PROGRAM_ID, { filters });
   const normPlate = plate.trim().toUpperCase();
   const normCountry = country?.trim().toUpperCase();
   const hits: VehicleHit[] = [];
-  for (const { publicKey, account } of all) {
-    if (!account.currentLicensePlate) continue;
-    if (account.currentLicensePlate.trim().toUpperCase() !== normPlate) continue;
+
+  for (const { pubkey, account } of raws) {
+    let decoded: AnchorVehicleAccount;
+    try {
+      decoded = accountsCoder.decode("vehicle", account.data) as AnchorVehicleAccount;
+    } catch {
+      // Skip stale-layout vehicles from earlier redeploys.
+      continue;
+    }
+    if (!decoded.currentLicensePlate) continue;
+    if (decoded.currentLicensePlate.trim().toUpperCase() !== normPlate) continue;
     if (normCountry) {
-      const cb = account.registrationCountry as unknown as number[];
+      const cb = decoded.registrationCountry as unknown as number[];
       const cc = String.fromCharCode(cb[0], cb[1]);
       if (cc !== normCountry) continue;
     }
     hits.push({
-      pda: publicKey.toBase58(),
-      summary: vehicleAccountToSummary(account),
+      pda: pubkey.toBase58(),
+      summary: vehicleAccountToSummary(decoded),
     });
   }
   return hits;
