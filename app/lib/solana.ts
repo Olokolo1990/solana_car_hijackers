@@ -76,6 +76,32 @@ function decodeCountry(bytes: ArrayLike<number>): string {
   return String.fromCharCode(bytes[0], bytes[1]);
 }
 
+// Shared mapper used by every Vehicle-fetcher (by VIN, by PDA, by plate).
+type AnchorVehicleAccount = NonNullable<
+  Awaited<ReturnType<ReturnType<typeof getReadOnlyProgram>["account"]["vehicle"]["fetchNullable"]>>
+>;
+
+function vehicleAccountToSummary(account: AnchorVehicleAccount): VehicleSummary {
+  const ownerHashBytes = account.currentOwnerHash as unknown as number[];
+  const countryBytes = account.registrationCountry as unknown as number[];
+  const isCountrySet = countryBytes[0] !== 0 || countryBytes[1] !== 0;
+  return {
+    vinHash: bytesToHex(account.vinHash as unknown as number[]),
+    make: account.make,
+    model: account.model,
+    year: account.year,
+    colorCode: account.colorCode,
+    lastMileage: account.lastMileage,
+    eventCount: (account.eventCount as unknown as BN).toNumber(),
+    createdAt: (account.createdAt as unknown as BN).toNumber(),
+    currentLicensePlate: account.currentLicensePlate,
+    currentOwnerHash: bytesToHex(ownerHashBytes),
+    registeredAtOfficial: (account.registeredAtOfficial as unknown as BN).toNumber(),
+    registrationCountry: isCountrySet ? decodeCountry(countryBytes) : "",
+    drivingBlockedSince: (account.drivingBlockedSince as unknown as BN).toNumber(),
+  };
+}
+
 export async function fetchVehicleSummary(
   vin: string
 ): Promise<VehicleSummary | null> {
@@ -96,40 +122,85 @@ export async function fetchVehicleSummary(
     return null;
   }
   if (!account) return null;
+  return vehicleAccountToSummary(account);
+}
 
-  const ownerHashBytes = account.currentOwnerHash as unknown as number[];
-  const countryBytes = account.registrationCountry as unknown as number[];
-  const isCountrySet = countryBytes[0] !== 0 || countryBytes[1] !== 0;
+export async function fetchVehicleSummaryByPda(
+  pda: PublicKey
+): Promise<VehicleSummary | null> {
+  const program = getReadOnlyProgram();
+  let account: Awaited<ReturnType<typeof program.account.vehicle.fetchNullable>>;
+  try {
+    account = await program.account.vehicle.fetchNullable(pda);
+  } catch (err) {
+    console.warn(
+      `fetchVehicleSummaryByPda: failed to deserialize Vehicle at ${pda.toBase58()}:`,
+      err
+    );
+    return null;
+  }
+  if (!account) return null;
+  return vehicleAccountToSummary(account);
+}
 
-  return {
-    vinHash: bytesToHex(account.vinHash as unknown as number[]),
-    make: account.make,
-    model: account.model,
-    year: account.year,
-    colorCode: account.colorCode,
-    lastMileage: account.lastMileage,
-    eventCount: (account.eventCount as unknown as BN).toNumber(),
-    createdAt: (account.createdAt as unknown as BN).toNumber(),
-    currentLicensePlate: account.currentLicensePlate,
-    currentOwnerHash: bytesToHex(ownerHashBytes),
-    registeredAtOfficial: (account.registeredAtOfficial as unknown as BN).toNumber(),
-    registrationCountry: isCountrySet ? decodeCountry(countryBytes) : "",
-    drivingBlockedSince: (account.drivingBlockedSince as unknown as BN).toNumber(),
-  };
+export interface VehicleHit {
+  pda: string;
+  summary: VehicleSummary;
+}
+
+/**
+ * Find Vehicle accounts whose `current_license_plate` matches `plate`
+ * (case-insensitive, trimmed). Optionally filter by ISO-2 `country`.
+ * Returns an array because multiple jurisdictions can re-use the same plate.
+ *
+ * Implementation note: scans every Vehicle account via getProgramAccounts
+ * (Anchor's `.all()`). Fine for hundreds of vehicles on devnet; for a real
+ * deployment a memcmp filter would be better but the offset depends on the
+ * variable-length make/model strings preceding `current_license_plate`.
+ */
+export async function findVehiclesByPlate(
+  plate: string,
+  country?: string
+): Promise<VehicleHit[]> {
+  const program = getReadOnlyProgram();
+  const all = await program.account.vehicle.all();
+  const normPlate = plate.trim().toUpperCase();
+  const normCountry = country?.trim().toUpperCase();
+  const hits: VehicleHit[] = [];
+  for (const { publicKey, account } of all) {
+    if (!account.currentLicensePlate) continue;
+    if (account.currentLicensePlate.trim().toUpperCase() !== normPlate) continue;
+    if (normCountry) {
+      const cb = account.registrationCountry as unknown as number[];
+      const cc = String.fromCharCode(cb[0], cb[1]);
+      if (cc !== normCountry) continue;
+    }
+    hits.push({
+      pda: publicKey.toBase58(),
+      summary: vehicleAccountToSummary(account),
+    });
+  }
+  return hits;
 }
 
 export async function fetchVehicleEvents(
   vin: string
 ): Promise<VehicleEventView[]> {
-  const program = getReadOnlyProgram();
   const [vehiclePda] = deriveVehiclePda(vin);
+  return fetchVehicleEventsByPda(vehiclePda);
+}
+
+export async function fetchVehicleEventsByPda(
+  vehiclePda: PublicKey
+): Promise<VehicleEventView[]> {
+  const program = getReadOnlyProgram();
 
   let vehicle: Awaited<ReturnType<typeof program.account.vehicle.fetchNullable>>;
   try {
     vehicle = await program.account.vehicle.fetchNullable(vehiclePda);
   } catch (err) {
     console.warn(
-      `fetchVehicleEvents: stale Vehicle layout at ${vehiclePda.toBase58()}:`,
+      `fetchVehicleEventsByPda: stale Vehicle layout at ${vehiclePda.toBase58()}:`,
       err
     );
     return [];
