@@ -2,19 +2,17 @@
 
 import type { ReactNode } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 
-// Admin route group: only the wallet stored as GlobalConfig.admin can write.
-// TODO: fetch global_config from chain and compare to publicKey here.
+// Admin route group: gates rendering on a connected wallet. The wallet
+// button itself lives in the global Header, so we only enforce here.
+// On-chain access control (admin pubkey check) happens at submit time
+// via Anchor's has_one constraint.
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const { publicKey } = useWallet();
   return (
     <div style={{ maxWidth: 960, margin: "2rem auto", padding: "0 1rem" }}>
-      <div style={{ marginBottom: "1.5rem" }}>
-        <WalletMultiButton />
-      </div>
       {!publicKey ? (
-        <p>Connect the admin wallet to continue.</p>
+        <p>Connect a wallet (top-right) to continue.</p>
       ) : (
         children
       )}

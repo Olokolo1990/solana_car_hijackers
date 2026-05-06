@@ -231,23 +231,28 @@ export function VehicleView({ summary, events, heading }: Props) {
           <div
             style={{
               ...statusCardStyle,
-              background: "#f9fafb",
-              borderColor: "#e5e7eb",
-              color: "#6b7280",
+              background: "#fef2f2",
+              borderColor: "#fca5a5",
             }}
           >
             <div
               style={{
                 fontSize: "0.72rem",
+                color: "#991b1b",
                 textTransform: "uppercase",
                 letterSpacing: "0.06em",
                 fontWeight: 700,
               }}
             >
-              No insurance on record
+              Insurance · Not insured
             </div>
-            <div style={{ fontSize: "0.85rem", marginTop: "0.45rem" }}>
-              No insurer has written a policy event for this vehicle.
+            <div style={{ marginTop: "0.45rem" }}>
+              <div style={{ fontSize: "0.95rem", color: "#991b1b", fontWeight: 600 }}>
+                no policy on record
+              </div>
+              <div style={{ fontSize: "0.78rem", color: "#b91c1c", marginTop: "0.2rem" }}>
+                No insurer has written a policy event for this vehicle.
+              </div>
             </div>
           </div>
         )}
@@ -318,23 +323,28 @@ export function VehicleView({ summary, events, heading }: Props) {
           <div
             style={{
               ...statusCardStyle,
-              background: "#f9fafb",
-              borderColor: "#e5e7eb",
-              color: "#6b7280",
+              background: "#fef2f2",
+              borderColor: "#fca5a5",
             }}
           >
             <div
               style={{
                 fontSize: "0.72rem",
+                color: "#991b1b",
                 textTransform: "uppercase",
                 letterSpacing: "0.06em",
                 fontWeight: 700,
               }}
             >
-              No inspection on record
+              Inspection · Not inspected
             </div>
-            <div style={{ fontSize: "0.85rem", marginTop: "0.45rem" }}>
-              No inspection station has recorded a result.
+            <div style={{ marginTop: "0.45rem" }}>
+              <div style={{ fontSize: "0.95rem", color: "#991b1b", fontWeight: 600 }}>
+                no record on file
+              </div>
+              <div style={{ fontSize: "0.78rem", color: "#b91c1c", marginTop: "0.2rem" }}>
+                No inspection station has recorded a result.
+              </div>
             </div>
           </div>
         )}

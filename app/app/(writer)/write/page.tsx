@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useAnchorWallet } from "@solana/wallet-adapter-react";
 import { BN } from "@coral-xyz/anchor";
 import { Keypair } from "@solana/web3.js";
@@ -184,20 +185,43 @@ const EURO_STANDARDS = [
 
 // === Page ===
 
+// useSearchParams() forces a Suspense boundary at build time. Wrap the
+// real page in a thin Suspense outer so prerendering succeeds.
 type SubmissionResult =
   | { kind: "success"; tx: string }
   | { kind: "error"; message: string }
   | null;
 
 export default function WriteEventPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: "1rem" }}>Loading writer…</div>}>
+      <WriteEventPageInner />
+    </Suspense>
+  );
+}
+
+function WriteEventPageInner() {
   const wallet = useAnchorWallet();
+  const searchParams = useSearchParams();
   const [authority, setAuthority] = useState<AuthoritySummary | null | "loading">("loading");
   const [submission, setSubmission] = useState<SubmissionResult>(null);
 
   const [vin, setVin] = useState("");
   const [vinStatus, setVinStatus] = useState<VinStatus>({ kind: "idle" });
-  const [roleKey, setRoleKey] = useState<AuthorityKind | "">("");
-  const [actionId, setActionId] = useState<string>("");
+  // Role + action are pre-selectable via ?role=N&action=ID query params,
+  // used by the home-page RoleDashboard to deep-link straight into a flow.
+  const [roleKey, setRoleKey] = useState<AuthorityKind | "">(() => {
+    const raw = searchParams?.get("role");
+    if (raw === null || raw === undefined) return "";
+    const n = Number(raw);
+    return Number.isFinite(n) && ROLES.some((r) => r.key === n)
+      ? (n as AuthorityKind)
+      : "";
+  });
+  const [actionId, setActionId] = useState<string>(() => {
+    const raw = searchParams?.get("action");
+    return typeof raw === "string" ? raw : "";
+  });
 
   // Common write_event fields
   const [mileage, setMileage] = useState("");

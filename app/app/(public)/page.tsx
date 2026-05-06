@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { RoleDashboard } from "@/components/RoleDashboard";
 
 type Mode = "vin" | "plate";
 
@@ -117,6 +118,8 @@ export default function VehicleLookupHome() {
           Search
         </button>
       </form>
+
+      <RoleDashboard />
     </section>
   );
 }
